@@ -1,0 +1,234 @@
+        * {
+            cursor: none;
+        }
+        
+        @font-face {
+            font-family: 'AmsiPro-Bold';
+            font-style: bold;
+            font-weight: bold;
+            src: local('AmsiPro-Bold'), url('../fonts/AmsiPro-Bold.woff') format('woff');
+        }
+    .particle {
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      background: white;
+      border-radius: 50%;
+      pointer-events: none;
+      opacity: 0.8;
+      z-index: 999;
+      animation: rise 0.5s ease-out forwards;
+    }
+
+    @keyframes rise {
+      0% {
+        transform: translateY(0);
+        opacity: 0.8;
+      }
+      100% {
+        transform: translateY(-20px);
+        opacity: 0;
+      }
+    }
+        html, body {
+            line-height: 1;
+            cursor: none;
+            margin: 0;
+            padding: 0;
+        }
+        .content {
+            line-height: 1;
+            cursor: none;
+            overflow:auto;
+            overflow-y:auto;
+            overflow-x:hidden;
+            white-space:normal;
+            word-wrap:break-word;
+        }
+        body {
+            line-height: 1;
+            cursor: none;
+            font-family: "AmsiPro-Bold";
+            margin: 0px;
+            background: linear-gradient(to bottom,
+                        rgb(0,0,0) 0%, 
+                        rgb(30,30,30) 45%,
+                        rgb(60,60,60) 95%);
+            background-attachment: fixed;
+            color: rgb(255, 255, 255);
+            display: flex;
+            flex-direction: column;
+            min-height: 100%;
+            overflow: auto;
+
+
+            padding-bottom: 34px;
+        }
+		[id] {
+			scroll-margin-top: 60px;
+		}
+        .outline {
+            font-weight: bold;
+            -webkit-text-stroke-width: 2px;
+            -webkit-text-stroke-color: black;
+        }
+        .text {
+            margin-left: 14px;
+            line-height: 1px;
+            font-weight: normal;
+        }
+        .list_head {
+            font-weight: bold;
+            color: rgb(255,255,255);
+        }
+        .list {
+            margin-left: 14px;
+            line-height: 20px;
+            font-weight: normal;
+        }
+        .red {
+            color:rgb(240,40,60);
+            font-weight:bold;
+            font-family: AmsiPro-Bold;
+        }
+        .text_white {
+            color: rgb(220,220,220);
+            margin-left: 14px;
+            line-height: 13px;
+            font-weight: normal;
+        }
+        .text_grey {
+            color: rgb(180,180,180);
+            margin-left: 14px;
+            line-height: 13px;
+            font-weight: normal;
+        }
+        .center {
+            margin: auto
+        }
+        header {
+            z-index: 1000;
+            position: fixed;
+            width: 100%;
+            background-color: rgb(40, 40, 40);
+            padding: 2px 0px;
+            box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px;
+            border-bottom-left-radius: 15px;
+            border-bottom-right-radius: 15px;
+            transition: background-color 0.5s ease 0s;
+        }
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0px 20px;
+            overflow: auto;
+        }
+        nav ul {
+            list-style: none;
+            padding: 0px;
+            display: flex;
+        }
+        nav li {
+            margin-right: 3px;
+        }
+        nav a {
+            text-decoration: none;
+            color: rgb(255, 255, 255);
+            font-weight: bold;
+            transition: color 0.3s ease 0s;
+        }
+        nav a:hover {
+        cursor: none;
+            color: rgb(20, 70, 210);
+        }
+        nav a.glow:hover {
+        cursor: none;
+            color: rgb(40, 40, 60);
+        }
+        .logo {
+            font-size: 50px;
+            font-family: 'Press Start 2P';
+        }
+        .hero {
+            display: flex;
+            font-weight: bold;
+            justify-content: center;
+            padding: 30px 20px;
+        }
+        .hero-content {
+            text-align: center;
+        }
+        .title-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+        .hero h1 {
+            font-size: 48px;
+            margin-bottom: 4px;
+        }
+        .hero p {
+            font-size: 14px;
+            margin-top: 0px;
+            color: rgb(180,180,180);
+        }
+        footer {
+            background-color: rgb(60, 60, 60);
+            padding: 0px 0px;
+            text-align: center;
+            position: fixed;
+            left: 0;
+            bottom: 0;
+            width: 100%;
+            height: 5%;
+            border-top-left-radius: 15px;
+            border-top-right-radius: 15px;
+            flex-shrink: 0;
+        }
+        .footer-content {
+            padding: 0px;
+        }
+        footer p {
+            font-size: 14px;
+            color: rgb(102, 102, 102);
+        }
+        .glow {
+            color: white;
+            text-shadow: rgba(255, 255, 255, 0.7) 0px 0px 5px, rgba(255, 255, 255, 0.7) 0px 0px 10px, rgb(0, 128, 255) 0px 0px 15px, rgb(0, 128, 255) 0px 0px 20px, rgb(0, 128, 255) 0px 0px 25px;
+        }
+        .glow_green {
+            color: green;
+            text-shadow: rgba(0, 255, 0, 0.7) 0px 0px 5px, rgba(0, 255, 0, 0.7) 0px 0px 10px, rgb(0, 255, 0) 0px 0px 20px, rgb(0, 255, 0) 0px 0px 25px;
+        }
+
+         ::selection {
+            cursor: none;
+            text-shadow: rgba(255, 255, 255, 0.7) 0px 0px 5px,rgba(255, 255, 255, 0.7) 0px 0px 10px,rgba(128, 128, 128, 1) 0px 0px 15px,rgba(128, 128, 128, 1) 0px 0px 20px,rgba(128, 128, 128, 1) 0px 0px 25px;
+            background: rgb(80,80,80);
+            color: white;
+            border-radius: 0px;
+        }
+        a:link {
+            cursor: none;
+            text-decoration:none;
+            color: rgb(255,255,255);
+            font-weight: bold;
+        }
+        a:visited {
+            cursor: none;
+            text-decoration:none;
+            color: rgb(255,255,255);
+            font-weight: bold;
+        }
+        a:active {
+            cursor: none;
+            text-decoration:none;
+            color: rgb(255,255,255);
+            font-weight: bold;
+        }
+        .centered {
+            justify-content: center;
+        }
+	tr:nth-of-type(even){
+	color:rgb(170,170,170);
+	}

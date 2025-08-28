@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,height=device-height, initial-scale=1.0">
+    <title>Home</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../../styles/styles.css">
+</head>
+<div id="cursor" style="
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 64px;
+  height: 64px;
+  pointer-events: none;
+  z-index: 9999;
+  background-image: url('../../images/cursor.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  display: block;
+"></div>
+<audio id="themeSound"></audio>
+<audio id="secretSound" src="../../sounds/secret.mp3"></audio>
+<audio id="hoverSound" src="../../sounds/hover.wav"></audio>
+<body>
+<header>
+    <nav>
+        <ul>
+            <li><a href=../.. class="sound">Home</a></li>
+
+        </ul>
+        <a class="logo", href="https://www.pi-zahl.de/#Pi-mit-1-millionen-stellen-hinterm-komma">π</a>
+    </nav>
+</header>
+<main>
+        <section class="hero">
+            <div class="hero-content">
+                <div class="title-wrapper">
+                    <h1 class="outline" style="font-family:'AmsiPro-Bold'">Layout</h1>
+                </div>
+               <p style="font-family:'AmsiPro-Bold'">Under Layout</p>
+            </div>
+        </section>
+    <div class="text">
+    <h2 style="margin-left:7px;">Header:</h2>
+    <p class="text_white">- 1st Paragraph</p>
+    <p class="text_grey">- 2nd Paragraph</p>
+    </div>
+</main>
+<footer>
+    <div class="footer-content">
+        <p>© 2025 Marcus' Grafik-Karten GmbH</p>
+        <button id="secretButton2" style="
+            position: fixed;
+            top: 90px;
+            right: 40%;
+            width: 10.5%;
+            height: 40px;
+            opacity: 0;
+            border: none;
+            background: red;
+            cursor: none;
+            z-index: 99;
+            "></button>
+        <button id="secretButton" style="
+            position: fixed;
+            bottom: 5px;
+            right: 5px;
+            width: 99.5%;
+            height: 40px;
+            opacity: 0;
+            border: none;
+            background: red;
+            cursor: none;
+            z-index: 99;
+            "></button>
+    </div>
+</footer>
+</body>
+<script>
+const secretButton = document.getElementById('secretButton');
+const secretButton2 = document.getElementById('secretButton2');
+const themeSound = document.getElementById('themeSound');
+secretButton2.addEventListener('click', () => {
+  secretSound.currentTime= 0;
+  secretSound.play().catcg(err => {
+    console.warn('Secret sound failed:', err);
+  })
+})
+let cursor = document.getElementById("cursor");
+let cursorrot = 0;
+let prevx = 0;
+
+window.addEventListener("mousemove", function (event) {
+  const scale = 1; // kannst anpassen falls du scaling machst
+  const speed = ((event.clientX / window.innerWidth) - prevx) * 304;
+
+  cursorrot += Math.min(speed, 10);
+  cursorrot = Math.max(Math.min(cursorrot, 45), -45); // Begrenzung
+
+  cursor.style.left = (event.clientX - 6) + "px";
+  cursor.style.top = (event.clientY - 2) + "px";
+  cursor.style.transform = `rotate(${cursorrot}deg) scale(${scale})`;
+
+  prevx = event.clientX / window.innerWidth;
+});
+
+// "Zurückschwingen" (Inertia-Effekt)
+setInterval(() => {
+  if (cursorrot > 0) {
+    cursorrot = Math.max(cursorrot * 0.85, 0);
+  } else if (cursorrot < 0) {
+    cursorrot = Math.min(cursorrot * 0.85, 0);
+  }
+  cursor.style.transform = `rotate(${cursorrot}deg) scale(1)`;
+}, 16);
+
+const hoverSound = document.getElementById('hoverSound');
+
+document.querySelectorAll('a.sound').forEach(link => {
+  link.addEventListener('mouseenter', () => {
+    hoverSound.currentTime = 0;
+    hoverSound.play().catch(err => {
+      console.warn('Hover sound failed:', err);
+    });
+  });})
+</script>
+</html>

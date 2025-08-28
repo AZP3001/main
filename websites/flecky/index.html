@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,height=device-height, initial-scale=1.0">
+    <title>Flecky</title>
+    <style>
+        body {
+            font-family: "Helvetica Neue", sans-serif;
+            margin: 0px;
+            background-color: rgb(0, 0, 0);
+            color: rgb(255, 255, 255);
+            display: flex;
+            flex-direction: column;
+            min-height: 50vh;
+            overflow: auto;
+        }
+        header {
+            background-color: rgb(40, 40, 40);
+            padding: 2px 0px;
+            box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px;
+            border-bottom-left-radius: 15px;
+            border-bottom-right-radius: 15px;
+            transition: background-color 0.5s ease 0s;
+        }
+        nav {
+            display: flex;
+            justify-content: center; /* Center aligns the content */
+            align-items: center;
+            padding: 0px 20px;
+        }
+        nav ul {
+            list-style: none;
+            padding: 0px;
+            margin: 0; /* Removes default margin for better centering */
+            display: flex;
+            justify-content: center; /* Centers the list items */
+        }
+        nav li {
+            margin-right: 0px;
+        }
+        nav a {
+            text-decoration: none;
+            color: rgb(255, 255, 255);
+            font-weight: bold;
+            transition: color 0.3s ease 0s;
+        }
+        nav a:hover {
+            color: rgb(20, 70, 210);
+        }
+        .hero {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: rgb(0, 0, 0);
+            padding: 30px 20px;
+            min-height: 50px;
+            border-radius: 15px;
+        }
+        .hero-content {
+            text-align: center;
+        }
+        .title-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+        .hero h1 {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        .hero p {
+            font-size: 26px;
+            margin-top: 1px;
+        }
+        .glow {
+            color: white;
+            text-shadow: rgba(255, 255, 255, 0.7) 0px 0px 5px, rgba(255, 255, 255, 0.7) 0px 0px 10px, rgb(0, 128, 255) 0px 0px 15px, rgb(0, 128, 255) 0px 0px 20px, rgb(0, 128, 255) 0px 0px 25px;
+            margin-top: 10%;
+            font-weight: bold;
+        }
+        ::selection {
+            text-shadow: rgba(255, 255, 255, 0.7) 0px 0px 5px,rgba(255, 255, 255, 0.7) 0px 0px 10px,rgba(128, 128, 128, 1) 0px 0px 15px,rgba(128, 128, 128, 1) 0px 0px 20px,rgba(128, 128, 128, 1) 0px 0px 25px;
+            background: /*rgb(0,0,0)*/;  /* Background color for selected text */
+            color: white;     /* Text color for selected text */
+            border-radius: 12px; /* Adjust the value for more or less rounding */
+            padding: 2px;         /* Adds some space around the text */
+        }
+            .gallery {
+            margin-top: 10%;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            justify-content: center; /* Center all images in the gallery */
+            gap: 1% 2%; /* Add space between each image and text block */
+            justify-content: center;
+            align-content: center;
+            padding: 2%;
+        }
+        .image-item {
+            display: flex;
+            flex-direction: column; /* Stack image and text vertically */
+            align-items: center; /* Center image and text */
+            max-width: 100%; /* Restrict maximum width for images */
+        }
+        .image-item img {
+            width: 100%; /* Make images responsive */
+            height: auto; /* Maintain aspect ratio */
+            border-radius: 15px; /* Add rounded edges to the images */
+            box-shadow: rgba(0, 0, 0, 0.4) 0px 4px 8px; /* Add slight shadow for a polished look */
+            transition: transform 0.5s ease; /* Smooth scaling effect on hover */
+        }
+        .image-item img:hover {
+            transform: scale(1.03); /* Slight zoom-in effect on hover */
+        }
+        .image-item p {
+            margin-top: 15px;
+            font-size: 20px;
+            text-align: center;
+            color: rgb(255, 255, 255);
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <nav>
+        <ul>
+            <li><a href="../..">Home</a></li>
+        </ul>
+    </nav>
+</header>
+<main>
+    <section class="hero">
+        <div class="hero-content">
+            <div class="title-wrapper">
+                <h1 class="glow">Flecky's Memorial</h1>
+            </div>
+            <p class="bold">25.09.2012 - 11.09.2024</p>
+            <p class="bold">Rest in Peace</p>
+        </div>
+    </section>
+    <section class="gallery">
+        <div class="image-item">
+            <img src="../../images/flecky/first_snow_0.jpg" alt="Image 0">
+            <p class="bold">Flecky's first time being in snow.</p>
+        </div>
+        <div class="image-item">
+            <img src="../../images/flecky/first_snow_1.jpg" alt="Image 1">
+            <p class="bold">He liked it alot!</p>
+        </div>
+        <div class="image-item">
+            <img src="../../images/flecky/last.jpg" alt="Image 2">
+            <p class="bold">The last Image of him. 1 Week before he passed.</p>
+        </div>
+        <div class="image-item">
+            <img src="../../images/flecky/3.jpg" alt="Image 3">
+            <p></p>
+        </div>
+        <div class="image-item">
+            <img src="../../images/flecky/4.jpg" alt="Image 4">
+            <p></p>
+        </div>
+        <div class="image-item">
+            <img src="../../images/flecky/5.jpg" alt="Image 5">
+            <p></p>
+        </div>
+        <div class="image-item">
+            <img src="../../images/flecky/6.jpg" alt="Image 6">
+            <p></p>
+        </div>
+        <div class="image-item">
+            <img src="../../images/flecky/7.jpg" alt="Image 7">
+            <p></p>
+        </div>
+        <div class="image-item">
+            <img src="../../images/flecky/0.jpg" alt="First Snow 0">
+            <p></p>
+        </div>
+        <div class="image-item">
+            <img src="../../images/flecky/1.jpg" alt="First Snow 1">
+            <p></p>
+        </div>
+        <div class="image-item">
+            <img src="../../images/flecky/2.jpg" alt="Last Image">
+            <p></p>
+        </div>
+    </section>
+</main>
+</body>
+</html>

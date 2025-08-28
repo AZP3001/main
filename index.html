@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,height=device-height, initial-scale=1.0">
+    <title>Home</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./styles/styles.css">
+</head>
+<div id="cursor" style="
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 64px;
+  height: 64px;
+  pointer-events: none;
+  z-index: 9999;
+  background-image: url('./images/cursor.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  display: block;
+"></div>
+
+themeSound.src = './sounds/themes/theme1.mp3';
+themeSound2.src = './sounds/themes/theme2.mp3';
+<audio id="themeSound" src="sounds/themes/theme1.mp3"></audio>
+<audio id="themeSound2" src="sounds/themes/theme2.mp3"></audio>
+<audio id="secretSound" src="sounds/secret.mp3"></audio>
+<audio id="hoverSound" src="sounds/hover.wav"></audio>
+<body>
+<header>
+    <nav>
+        <ul>
+            <li><a href=>Home</a></li>
+            <li style="margin-left:17px;"><a href="./websites/glossar/" class="sound">Glossar</a></li>
+            <li style="margin-left:17px;"><a href="./websites/commands/" class="sound">HTML-Glossar</a></li>
+            <li style="margin-left:17px;"><a href="./websites/changelog/" class="sound">Changelog</a></li>
+            <li style="margin-left:17px;"><a href="./websites/contact/" class="sound">Contact</a></li>
+            <li style="margin-left:17px;"><a href="./websites/project/" class="sound">Project</a></li>
+            <li style="margin-left:17px;"><a href="./debug/test.php" class="sound">Debug PHP</a></li>
+            <li style="margin-left:17px;"><a href="./websites/flecky/" class="glow" >FLECKY</a></li>
+
+        </ul>
+        <a class="logo", href="https://www.pi-zahl.de/#Pi-mit-1-millionen-stellen-hinterm-komma">π</a>
+    </nav>
+</header>
+<main>
+        <section class="hero">
+            <div class="hero-content">
+                <div class="title-wrapper">
+                    <h1 class="outline" style="font-family:'AmsiPro-Bold'">Marcus' Website</h1>
+                </div>
+               <p style="font-family:'AmsiPro-Bold'">Lookout for Secrets...</p>
+               <p style="font-family:'AmsiPro-Bold'">They are everywhere...</p>
+            </div>
+        </section>
+    <div class="text">
+    <h2 style="margin-left:7px;">Competence:</h2>
+    <p class="text_white">- Linux Terminal & Windows Powershell</p>
+    <p class="text_grey">- Python & HTML & JavaScript & CSS & Basic</p>
+    <p class="text_white">- MS Office (Word & PowerPoint & Excel)</p>
+    <p class="text_grey">- LibreOffice (Writer, Calc)</p>
+    <p class="text_white">- Electrics Engineering</p>
+    <p class="text_grey">- Building & Reparing Computers</p>
+    <p class="text_white">- Optimizations</p>
+    <h2 style="margin-left:7px;margin-top:50px;">Hobbies:</h2>
+    <p class="text_white">- Gaming</p>
+    <p class="text_grey">- Building Computers</p>
+    <p class="text_white">- Modding Applications & Games</p>
+    <p class="text_grey">- Optimizations</p>
+    </div>
+</main>
+<footer>
+    <div class="footer-content">
+        <p>© 2025 Marcus' Grafik-Karten GmbH</p>
+        <button id="secretButton2" style="
+            position: fixed;
+            bottom: 0px;
+            left: 0;
+            width: 50%;
+            height: 50px;
+            opacity: 0.0;
+            border: none;
+            background: blue;
+            cursor: none;
+            z-index: 99;
+            "></button>
+        <button id="secretButton" style="
+            position: fixed;
+            bottom: 0px;
+            right: 0px;
+            width: 50%;
+            height: 50px;
+            opacity: 0.0;
+            border: none;
+            background: red;
+            cursor: none;
+            z-index: 99;
+            "></button>
+    </div>
+</footer>
+</body>
+<script>
+const secretButton = document.getElementById('secretButton');
+const secretButton2 = document.getElementById('secretButton2');
+const allButton = document.getElementById('allButton');
+const themeSound = document.getElementById('themeSound');
+
+secretButton2.addEventListener('click', () => {
+  secretSound.currentTime= 0;
+  secretSound.play().catch(err => {
+    console.warn('Secret sound failed:', err);
+  })
+})
+
+let state = 0;
+
+themeSound.addEventListener('ended', () => {
+    themeSound2.play().catch(err => {
+    console.warn('Theme2 failed:', err);});
+    themeSound2.loop = true;
+    });
+
+secretButton.addEventListener('click', () => {
+  if (state == 0) {
+    state = 1;
+    themeSound2.load();
+    themeSound.play().catch(err => {
+      console.warn('Theme sound failed:', err);});
+    } else {
+    themeSound.pause();
+    state = 0;}});
+
+
+let cursor = document.getElementById("cursor");
+let cursorrot = 0;
+let prevx = 0;
+
+window.addEventListener("mousemove", function (event) {
+  const scale = 1; // kannst anpassen falls du scaling machst
+  const speed = ((event.clientX / window.innerWidth) - prevx) * 304;
+
+  cursorrot += Math.min(speed, 10);
+  cursorrot = Math.max(Math.min(cursorrot, 100), -100); // Begrenzung
+
+  cursor.style.left = (event.clientX - 6) + "px";
+  cursor.style.top = (event.clientY - 2) + "px";
+  cursor.style.transform = `rotate(${cursorrot}deg) scale(${scale})`;
+
+  prevx = event.clientX / window.innerWidth;
+});
+
+
+// "Zurückschwingen" (Inertia-Effekt)
+setInterval(() => {
+  if (cursorrot > 0) {
+    cursorrot = Math.max(cursorrot * 0.85, 0);
+  } else if (cursorrot < 0) {
+    cursorrot = Math.min(cursorrot * 0.85, 0);
+  }
+  cursor.style.transform = `rotate(${cursorrot}deg) scale(1)`;
+}, 16);
+
+const hoverSound = document.getElementById('hoverSound');
+
+document.querySelectorAll('a.sound').forEach(link => {
+  link.addEventListener('mouseenter', () => {
+    hoverSound.currentTime = 0;
+    hoverSound.play().catch(err => {
+      console.warn('Hover sound failed:', err);
+    });
+  });})
+</script>
+</html>
