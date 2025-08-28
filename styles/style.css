@@ -1,0 +1,224 @@
+<style>
+    /* Reset and base */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      color: #e1e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 0 20px 40px;
+      user-select: none;
+      overflow-x: hidden;
+    }
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+    a:focus,
+    button:focus {
+      outline: 2px solid #22a7f0;
+      outline-offset: 2px;
+    }
+
+    /* Navbar container */
+    nav {
+      width: 100%;
+      max-width: 1280px;
+      background-color: rgba(15, 32, 39, 0.9);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 24px;
+      position: sticky;
+      top: 0;
+      border-bottom: 1px solid #22a7f080;
+      z-index: 999;
+      backdrop-filter: saturate(180%) blur(20px);
+      box-shadow: 0 3px 6px rgb(0 0 0 / 0.4);
+    }
+
+    /* Nav links container */
+    .nav-links {
+      display: flex;
+      gap: 22px;
+      font-weight: 600;
+      font-size: 1rem;
+      letter-spacing: 0.05em;
+    }
+
+    .nav-links a {
+      padding: 8px 12px;
+      border-radius: 6px;
+      transition: background-color 0.3s ease, color 0.3s ease;
+      position: relative;
+    }
+    .nav-links a:hover,
+    .nav-links a:focus {
+      background: #22a7f0;
+      color: #0e141b;
+      box-shadow:
+        0 0 8px #22a7f0,
+        0 2px 6px rgb(34 167 240 / 0.5);
+      cursor: pointer;
+      z-index: 1000;
+    }
+
+    /* Special highlight for the active FLECKY button */
+    .nav-links a.active {
+      background: #0e141b;
+      color: #22a7f0;
+      font-weight: 700;
+      box-shadow:
+        inset 0 -3px 0 0 #22a7f0;
+    }
+    .nav-links a.active:hover,
+    .nav-links a.active:focus {
+      background: #125a99;
+      color: #e1e8f0;
+      box-shadow:
+        0 0 12px #22a7f0,
+        0 4px 10px rgb(34 167 240 / 0.9);
+      font-weight: 800;
+    }
+
+    /* Logo shape (like the current image) */
+    .logo {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #22a7f0 0%, #0e141b 100%);
+      clip-path: polygon(0 0, 70% 0, 70% 100%, 100% 100%, 100% 80%, 30% 80%, 30% 0);
+      cursor: default;
+      filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.3));
+      transition: filter 0.3s ease;
+    }
+    .logo:hover {
+      filter: drop-shadow(0 5px 6px #22a7f0cc);
+    }
+
+    /* Main heading container */
+    header {
+      margin: 48px 0 36px 0;
+      text-align: center;
+      max-width: 900px;
+      user-select: text;
+    }
+    header h1 {
+      font-weight: 700;
+      font-size: 3.2rem;
+      letter-spacing: 0.03em;
+      color: #e1e8f0;
+      text-shadow:
+        0 1px 6px rgba(34, 167, 240, 0.7),
+        0 3px 10px rgba(0, 0, 0, 0.8);
+      margin-bottom: 8px;
+    }
+    header p.small {
+      font-size: 1rem;
+      color: #a8b8c9;
+      font-style: italic;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+      margin-bottom: 4px;
+    }
+    header p.small strong {
+      color: #22a7f0;
+      font-style: normal;
+      font-weight: 700;
+      text-shadow: 0 0 4px #22a7f0;
+    }
+
+    /* Content container */
+    main {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 48px;
+      max-width: 960px;
+      width: 100%;
+      user-select: text;
+    }
+    section {
+      flex: 1 1 320px;
+      background: rgba(0,0,0,0.18);
+      border-radius: 14px;
+      padding: 24px 32px;
+      box-shadow:
+        inset 0 0 40px rgba(34, 167, 240, 0.1),
+        0 8px 20px rgb(0 0 0 / 0.4);
+      transition: background 0.3s ease;
+    }
+    section:hover {
+      background: rgba(34, 167, 240, 0.1);
+      box-shadow:
+        inset 0 0 70px #22a7f0aa,
+        0 12px 28px #22a7f0cc;
+    }
+    section h2 {
+      font-size: 1.5rem;
+      margin-bottom: 14px;
+      font-weight: 700;
+      color: #d7e4f4;
+      text-shadow: 0 0 6px #22a7f0aa;
+    }
+    section ul {
+      list-style: none;
+      font-size: 1rem;
+      line-height: 1.5;
+      color: #a9b8cc;
+      padding-left: 16px;
+    }
+    section ul li {
+      margin-bottom: 6px;
+      cursor: default;
+      transition: color 0.3s ease;
+    }
+    section ul li strong {
+      color: #22a7f0;
+    }
+    section ul li:hover {
+      color: #d7e4f4;
+    }
+
+    /* Footer */
+    footer {
+      margin-top: 48px;
+      font-size: 0.85rem;
+      color: #666f7c;
+      user-select: none;
+      text-align: center;
+      max-width: 900px;
+    }
+
+    /* Cursor flourish for the hand pointer on main page */
+    body {
+      cursor: url('https://upload.wikimedia.org/wikipedia/commons/7/70/Windows_7_Win7_hand_cursor.cur'), auto;
+    }
+
+    /* Responsive tweaks */
+    @media (max-width: 640px) {
+      header h1 {
+        font-size: 2.4rem;
+      }
+      section {
+        padding: 18px 22px;
+      }
+      nav {
+        padding: 12px 14px;
+      }
+      .nav-links {
+        gap: 14px;
+        font-size: 0.9rem;
+      }
+      .logo {
+        width: 34px;
+        height: 34px;
+      }
+    }
+  </style>
