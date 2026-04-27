@@ -2,173 +2,1251 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width,height=device-height, initial-scale=1.0">
-    <title>Home</title>
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="./styles/styles.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TrackML: Evolution Racing</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gpu.js@latest/dist/gpu-browser.min.js"></script>
+    <style>
+        body { background-color: #0f172a; color: white; overflow: hidden; margin: 0; font-family: sans-serif; touch-action: none; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #1e293b; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        canvas { touch-action: none; outline: none; }
+        
+        .telemetry-bar-bg { background: #1e293b; height: 6px; border-radius: 3px; overflow: hidden; position: relative; }
+        .telemetry-bar-fill { height: 100%; transition: width 0.1s linear; }
+        .bar-steer-l { background: #60a5fa; position: absolute; right: 50%; height: 100%; }
+        .bar-steer-r { background: #60a5fa; position: absolute; left: 50%; height: 100%; }
+
+        #sidebar { transition: transform 0.3s ease-in-out; z-index: 50; }
+        @media (max-width: 1024px) {
+            #sidebar { position: absolute; height: 100%; transform: translateX(-100%); }
+            #sidebar.open { transform: translateX(0); }
+        }
+    </style>
+    <link rel="stylesheet" href="/index.css">
 </head>
-<div id="cursor" style="
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 64px;
-  height: 64px;
-  pointer-events: none;
-  z-index: 9999;
-  background-image: url('./images/cursor.png');
-  background-size: contain;
-  background-repeat: no-repeat;
-  display: block;
-"></div>
+<body class="flex flex-col lg:flex-row h-screen w-screen relative">
 
-themeSound.src = './sounds/themes/theme1.mp3';
-themeSound2.src = './sounds/themes/theme2.mp3';
-<audio id="themeSound" src="sounds/themes/theme1.mp3"></audio>
-<audio id="themeSound2" src="sounds/themes/theme2.mp3"></audio>
-<audio id="secretSound" src="sounds/secret.mp3"></audio>
-<audio id="hoverSound" src="sounds/hover.wav"></audio>
-<body>
-<header>
-    <nav>
-        <ul>
-            <li><a href=>Home</a></li>
-            <li style="margin-left:17px;"><a href="./websites/glossar/" class="sound">Glossar</a></li>
-            <li style="margin-left:17px;"><a href="./websites/commands/" class="sound">HTML-Glossar</a></li>
-            <li style="margin-left:17px;"><a href="./websites/changelog/" class="sound">Changelog</a></li>
-            <li style="margin-left:17px;"><a href="./websites/contact/" class="sound">Contact</a></li>
-            <li style="margin-left:17px;"><a href="./websites/project/" class="sound">Project</a></li>
-            <li style="margin-left:17px;"><a href="./debug/test.php" class="sound">Debug PHP</a></li>
-            <li style="margin-left:17px;"><a href="./websites/flecky/" class="glow" >FLECKY</a></li>
+    <div class="lg:hidden bg-slate-800 p-3 flex justify-between items-center border-b border-slate-700 z-40 relative">
+        <h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">TrackML</h1>
+        <button onclick="document.getElementById('sidebar').classList.toggle('open')" class="text-slate-300 hover:text-white">
+            <i data-lucide="menu" class="w-6 h-6"></i>
+        </button>
+    </div>
 
-        </ul>
-        <a class="logo", href="https://www.pi-zahl.de/#Pi-mit-1-millionen-stellen-hinterm-komma">π</a>
-    </nav>
-</header>
-<main>
-        <section class="hero">
-            <div class="hero-content">
-                <div class="title-wrapper">
-                    <h1 class="outline" style="font-family:'AmsiPro-Bold'">Marcus' Website</h1>
+    <!-- Sidebar -->
+    <div id="sidebar" class="w-full lg:w-80 bg-slate-800 p-4 flex flex-col border-r border-slate-700 overflow-y-auto shrink-0 custom-scrollbar shadow-xl">
+        <div class="flex justify-between items-center mb-4 hidden lg:flex">
+            <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
+                TrackML <span class="text-xs text-slate-500 font-normal block">v9.0 ArrayBuffer</span>
+            </h1>
+        </div>
+
+        <div class="mb-4">
+            <div class="flex justify-between items-center mb-2">
+                <h3 class="text-xs font-bold text-slate-400 flex items-center gap-2 uppercase tracking-wide">
+                    <i data-lucide="map" class="w-3 h-3"></i> Track Selection
+                </h3>
+                <div class="flex gap-1">
+                    <button onclick="app.resetTracks()" class="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded hover:bg-slate-600" title="Restore Defaults">
+                         <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
+                    </button>
+                    <button onclick="app.createNewTrack()" class="text-xs bg-emerald-600/20 text-emerald-400 px-2 py-1 rounded hover:bg-emerald-600/30 flex items-center gap-1">
+                        <i data-lucide="plus" class="w-3 h-3"></i> New
+                    </button>
                 </div>
-               <p style="font-family:'AmsiPro-Bold'">Lookout for Secrets...</p>
-               <p style="font-family:'AmsiPro-Bold'">They are everywhere...</p>
             </div>
-        </section>
-    <div class="text">
-    <h2 style="margin-left:7px;">Competence:</h2>
-    <p class="text_white">- Linux Terminal & Windows Powershell</p>
-    <p class="text_grey">- Python & HTML & JavaScript & CSS & Basic</p>
-    <p class="text_white">- MS Office (Word & PowerPoint & Excel)</p>
-    <p class="text_grey">- LibreOffice (Writer, Calc)</p>
-    <p class="text_white">- Electrics Engineering</p>
-    <p class="text_grey">- Building & Reparing Computers</p>
-    <p class="text_white">- Optimizations</p>
-    <h2 style="margin-left:7px;margin-top:50px;">Hobbies:</h2>
-    <p class="text_white">- Gaming</p>
-    <p class="text_grey">- Building Computers</p>
-    <p class="text_white">- Modding Applications & Games</p>
-    <p class="text_grey">- Optimizations</p>
+            <select id="track-dropdown" onchange="app.switchTrack(this.value)" class="w-full bg-slate-700 text-white text-xs p-2 rounded border border-slate-600 focus:outline-none focus:border-emerald-500 mb-2">
+            </select>
+            <div class="flex gap-2">
+                <button onclick="app.editTrack()" class="flex-1 py-1.5 text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded hover:bg-blue-500/20 flex items-center justify-center gap-1">
+                    <i data-lucide="edit-2" class="w-3 h-3"></i> Edit
+                </button>
+                <button onclick="app.deleteTrack()" class="flex-1 py-1.5 text-xs bg-red-500/10 text-red-400 border border-red-500/20 rounded hover:bg-red-500/20 flex items-center justify-center gap-1">
+                    <i data-lucide="trash-2" class="w-3 h-3"></i> Del
+                </button>
+            </div>
+        </div>
+
+        <div class="mb-4 bg-slate-700/30 p-3 rounded-lg border border-slate-600">
+             <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2 flex justify-between">
+                <span>Live Telemetry (Best Car)</span>
+                <i data-lucide="activity" class="w-3 h-3"></i>
+            </h3>
+            <div class="space-y-2">
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] w-8 text-slate-400">Steer</span>
+                    <div class="telemetry-bar-bg flex-1">
+                        <div id="tel-steer-l" class="bar-steer-l" style="width: 0%"></div>
+                        <div id="tel-steer-r" class="bar-steer-r" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] w-8 text-slate-400">Gas</span>
+                    <div class="telemetry-bar-bg flex-1"><div id="tel-gas" class="telemetry-bar-fill bg-emerald-500" style="width: 0%"></div></div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] w-8 text-slate-400">Brk</span>
+                    <div class="telemetry-bar-bg flex-1"><div id="tel-brake" class="telemetry-bar-fill bg-red-500" style="width: 0%"></div></div>
+                </div>
+                <div class="flex items-center gap-2 mt-1">
+                    <span class="text-[10px] w-8 text-slate-400">Spd</span>
+                    <div class="telemetry-bar-bg flex-1"><div id="tel-speed" class="telemetry-bar-fill bg-yellow-400" style="width: 0%"></div></div>
+                    <span id="tel-speed-val" class="text-[10px] w-6 text-right font-mono text-yellow-400">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="mb-4">
+             <div class="flex justify-between items-center mb-1">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wide">Stats</h3>
+            </div>
+            <div class="grid grid-cols-2 gap-2 mb-2">
+                <div class="bg-slate-700/50 p-2 rounded border border-slate-600">
+                    <span class="text-[10px] text-slate-400 block uppercase">Cur Gen Best</span>
+                    <span id="stat-gen-best" class="text-lg font-mono text-yellow-400">--</span>
+                </div>
+                <div class="bg-slate-700/50 p-2 rounded border border-slate-600">
+                    <span class="text-[10px] text-slate-400 block uppercase">All Time Best</span>
+                    <span id="stat-all-best" class="text-lg font-mono text-purple-400">--</span>
+                </div>
+            </div>
+            <div class="bg-slate-700/50 p-3 rounded-lg border border-slate-600">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="text-xs text-slate-400">Generation</span>
+                    <span id="stat-generation" class="text-lg font-mono font-bold">1</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-xs text-slate-400">Alive</span>
+                    <span id="stat-alive" class="text-lg font-mono text-emerald-400">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="space-y-2 mb-4">
+            <div class="flex gap-2">
+                <button id="btn-play" onclick="app.toggleRun()" class="flex-1 py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition-all bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 hover:bg-emerald-500/30">
+                    <i data-lucide="play" class="w-4 h-4"></i> <span>Start</span>
+                </button>
+                <button id="btn-hyper" onclick="app.toggleHyper()" class="w-12 py-2 rounded-lg font-bold flex items-center justify-center transition-all border bg-slate-700 text-slate-400 border-slate-600 hover:text-yellow-400" title="Hyper Mode (No Render)">
+                    <i data-lucide="zap" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="app.evolve()" class="flex-1 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 rounded text-xs">Skip Gen</button>
+                <button onclick="app.reset()" class="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs">Reset</button>
+            </div>
+            <div class="flex gap-2 pt-2 border-t border-slate-700">
+                <button onclick="app.saveBrain()" class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-xs flex items-center justify-center gap-1">
+                    <i data-lucide="download" class="w-3 h-3"></i> Save AI
+                </button>
+                <label class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-xs flex items-center justify-center gap-1 cursor-pointer">
+                    <i data-lucide="upload" class="w-3 h-3"></i> Load AI
+                    <input type="file" onchange="app.loadBrain(this)" class="hidden" accept=".json">
+                </label>
+            </div>
+        </div>
+
+        <div class="pt-2 pb-6">
+            <button onclick="document.getElementById('config-panel').classList.toggle('hidden')" class="flex items-center justify-between w-full p-2 text-xs font-bold text-slate-400 hover:text-slate-200">
+                <span>Sim Settings & Engine</span>
+                <i data-lucide="settings" class="w-3 h-3"></i>
+            </button>
+            <div id="config-panel" class="hidden space-y-3 p-2 bg-slate-750 rounded border border-slate-700 mt-2">
+                
+                <div class="flex justify-between items-center border-b border-slate-600 pb-1">
+                    <h4 class="text-[10px] font-bold text-blue-400 uppercase tracking-wide">Compute Engine</h4>
+                    <span class="text-[9px] text-slate-500 font-mono" id="core-count">Detecting cores...</span>
+                </div>
+                <div class="flex bg-slate-800 rounded p-1 border border-slate-600" onmouseenter="app.showInfo('engineToggle')" onmouseleave="app.showInfo(null)">
+                    <button id="btn-eng-cpu" onclick="app.setEngine('CPU')" class="flex-1 text-[10px] py-1 rounded bg-blue-600 text-white font-bold transition-all flex justify-center items-center gap-1">
+                        <i data-lucide="cpu" class="w-3 h-3"></i> CPU Threads
+                    </button>
+                    <button id="btn-eng-gpu" onclick="app.setEngine('GPU')" class="flex-1 text-[10px] py-1 rounded text-slate-400 hover:text-white transition-all flex justify-center items-center gap-1">
+                        <i data-lucide="monitor" class="w-3 h-3"></i> GPU Accelerated
+                    </button>
+                </div>
+
+                <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-wide border-b border-slate-600 pb-1 mt-2">Simulation</h4>
+                <div onmouseenter="app.showInfo('speedMultiplier')" onmouseleave="app.showInfo(null)">
+                     <label class="text-[10px] text-slate-500 flex justify-between"><span>Speed</span><span id="val-speed">3x</span></label>
+                     <input type="range" min="1" max="50" step="1" value="3" oninput="app.updateConfig('speedMultiplier', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
+                </div>
+
+                <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-wide border-b border-slate-600 pb-1 mt-2">Evolution & Brain</h4>
+                <div onmouseenter="app.showInfo('populationSize')" onmouseleave="app.showInfo(null)">
+                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Pop Size</span><span id="val-pop">200</span></label>
+                    <input type="range" min="20" max="1000" step="10" value="200" oninput="app.updateConfig('populationSize', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
+                </div>
+                <div onmouseenter="app.showInfo('eliteClones')" onmouseleave="app.showInfo(null)">
+                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Elite Clones</span><span id="val-elite">5</span></label>
+                    <input type="range" min="0" max="50" step="1" value="5" oninput="app.updateConfig('eliteClones', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
+                </div>
+                 <div onmouseenter="app.showInfo('mutationRate')" onmouseleave="app.showInfo(null)">
+                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Mutation Rate</span><span id="val-mut">25%</span></label>
+                    <input type="range" min="0.01" max="1.0" step="0.01" value="0.25" oninput="app.updateConfig('mutationRate', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
+                </div>
+                 <div onmouseenter="app.showInfo('hiddenLayers')" onmouseleave="app.showInfo(null)">
+                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Hidden Layers</span><span id="val-hidden">6</span></label>
+                    <input type="range" min="2" max="50" step="1" value="6" onchange="app.reset()" oninput="app.updateConfig('hiddenLayers', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
+                </div>
+                 <div onmouseenter="app.showInfo('initialTTL')" onmouseleave="app.showInfo(null)">
+                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Initial TTL</span><span id="val-ttl">200</span></label>
+                    <input type="range" min="50" max="1000" step="50" value="200" oninput="app.updateConfig('initialTTL', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
+                </div>
+                <div onmouseenter="app.showInfo('targetLaps')" onmouseleave="app.showInfo(null)">
+                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Target Laps</span><span id="val-laps">2</span></label>
+                    <input type="range" min="1" max="50" step="1" value="2" oninput="app.updateConfig('targetLaps', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
+                </div>
+
+                <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-wide border-b border-slate-600 pb-1 mt-2">Physics</h4>
+                <div onmouseenter="app.showInfo('maxSpeed')" onmouseleave="app.showInfo(null)">
+                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Max Speed</span><span id="val-maxSpeed">14</span></label>
+                    <input type="range" min="8" max="25" value="14" oninput="app.updatePhysics('maxSpeed', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
+                </div>
+                <div onmouseenter="app.showInfo('acceleration')" onmouseleave="app.showInfo(null)">
+                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Acceleration</span><span id="val-accel">0.15</span></label>
+                    <input type="range" min="0.05" max="1.0" step="0.05" value="0.15" oninput="app.updatePhysics('acceleration', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
+                </div>
+                <div onmouseenter="app.showInfo('turnSpeed')" onmouseleave="app.showInfo(null)">
+                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Turn Speed</span><span id="val-turn">0.05</span></label>
+                    <input type="range" min="0.02" max="0.2" step="0.01" value="0.05" oninput="app.updatePhysics('turnSpeed', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
+                </div>
+                <div onmouseenter="app.showInfo('grip')" onmouseleave="app.showInfo(null)">
+                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Grip (Friction)</span><span id="val-grip">96%</span></label>
+                    <input type="range" min="0.8" max="0.99" step="0.01" value="0.96" oninput="app.updatePhysics('grip', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
+                </div>
+
+                <div id="setting-info" class="text-[10px] text-slate-500 italic min-h-[50px] border-t border-slate-600 pt-2 mt-2 transition-colors">
+                    Hover over a setting to see how it affects the AI and simulation.
+                </div>
+            </div>
+        </div>
     </div>
-</main>
-<footer>
-    <div class="footer-content">
-        <p>© 2025 Marcus' Grafik-Karten GmbH</p>
-        <button id="secretButton2" style="
-            position: fixed;
-            bottom: 0px;
-            left: 0;
-            width: 50%;
-            height: 50px;
-            opacity: 0.0;
-            border: none;
-            background: blue;
-            cursor: none;
-            z-index: 99;
-            "></button>
-        <button id="secretButton" style="
-            position: fixed;
-            bottom: 0px;
-            right: 0px;
-            width: 50%;
-            height: 50px;
-            opacity: 0.0;
-            border: none;
-            background: red;
-            cursor: none;
-            z-index: 99;
-            "></button>
+
+    <!-- Main Content -->
+    <div class="flex-1 p-2 md:p-4 flex flex-col gap-4 overflow-hidden relative" onclick="document.getElementById('sidebar').classList.remove('open')">
+        
+        <!-- Editor Controls (Overlay) -->
+        <div id="editor-controls" class="hidden absolute top-6 left-6 right-6 z-50 bg-slate-800 p-3 rounded-lg border border-slate-700 shadow-2xl flex justify-between items-center flex-wrap gap-2">
+            <div class="flex items-center gap-4 flex-wrap">
+                <input id="edit-name" type="text" class="bg-slate-700 border border-slate-600 rounded px-3 py-1 text-sm md:text-lg font-bold text-white w-32 md:w-48" placeholder="Track Name">
+                <div class="flex bg-slate-700 rounded p-1 gap-1">
+                    <button onclick="editor.setMode('path')" id="btn-mode-path" class="px-2 py-1 text-xs rounded flex items-center gap-1 bg-blue-600 text-white">
+                        <i data-lucide="move" class="w-3 h-3"></i> Path
+                    </button>
+                    <button onclick="editor.setMode('zones')" id="btn-mode-zones" class="px-2 py-1 text-xs rounded flex items-center gap-1 text-slate-400">
+                        <i data-lucide="target" class="w-3 h-3"></i> Zones
+                    </button>
+                    <button onclick="editor.setMode('decor')" id="btn-mode-decor" class="px-2 py-1 text-xs rounded flex items-center gap-1 text-slate-400">
+                        <i data-lucide="trees" class="w-3 h-3"></i> Decor
+                    </button>
+                </div>
+
+                <div id="zone-tools" class="hidden flex items-center gap-2">
+                    <button onclick="editor.addZone('speed')" class="bg-red-500/20 text-red-400 border border-red-500/50 px-2 py-1 rounded text-[10px] md:text-xs">Spd</button>
+                    <button onclick="editor.addZone('precision')" class="bg-blue-500/20 text-blue-400 border border-blue-500/50 px-2 py-1 rounded text-[10px] md:text-xs">Pt</button>
+                    <button onclick="editor.deleteZone()" class="text-red-400 px-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                </div>
+
+                <div id="decor-tools" class="hidden flex items-center gap-2">
+                    <button onclick="editor.addDecor('tree')" class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 px-2 py-1 rounded text-[10px] md:text-xs">🌲</button>
+                    <button onclick="editor.addDecor('rock')" class="bg-stone-500/20 text-stone-400 border border-stone-500/50 px-2 py-1 rounded text-[10px] md:text-xs">🪨</button>
+                    <button onclick="editor.deleteDecor()" class="text-red-400 px-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                </div>
+
+                 <div id="path-tools" class="flex items-center gap-2 md:gap-4">
+                    <div class="flex flex-col w-16 md:w-20">
+                        <span class="text-[8px] md:text-[10px] text-slate-400">Width</span>
+                        <input type="range" min="20" max="150" id="edit-width" oninput="editor.updateWidth(this.value)" class="w-full">
+                    </div>
+                     <div class="flex flex-col w-16 md:w-20">
+                        <span class="text-[8px] md:text-[10px] text-slate-400">Angle</span>
+                        <input type="range" min="0" max="360" id="edit-angle" oninput="editor.updateAngle(this.value)" class="w-full">
+                    </div>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="editor.cancel()" class="px-2 py-1 md:px-4 md:py-2 bg-slate-700 hover:bg-slate-600 rounded text-xs md:text-sm">Cancel</button>
+                <button onclick="editor.save()" class="px-2 py-1 md:px-4 md:py-2 bg-emerald-600 hover:bg-emerald-500 rounded font-bold text-xs md:text-sm">Save</button>
+            </div>
+        </div>
+
+        <div class="flex-1 bg-slate-950/50 rounded-xl border border-slate-800 overflow-hidden relative flex items-center justify-center">
+            <canvas id="sim-canvas" width="1200" height="900" class="w-full h-full object-contain shadow-2xl rounded"></canvas>
+            
+            <div id="hyper-banner" class="hidden absolute top-4 right-4 bg-yellow-500/20 border border-yellow-500/50 text-yellow-200 px-4 py-2 rounded-full flex items-center gap-2 backdrop-blur-sm animate-pulse pointer-events-none z-10">
+                <i data-lucide="zap" class="w-4 h-4 text-yellow-400"></i>
+                <span class="text-xs font-bold uppercase tracking-wider">Hyper Mode Active</span>
+            </div>
+            
+            <div id="engine-status" class="absolute bottom-4 left-4 bg-slate-900/80 border border-slate-700 text-slate-300 px-3 py-1.5 rounded text-[10px] flex items-center gap-2 backdrop-blur-sm pointer-events-none z-10">
+                <i data-lucide="cpu" class="w-3 h-3 text-blue-400" id="engine-icon"></i>
+                <span id="engine-label">Engine: Starting...</span>
+            </div>
+        </div>
+
+        <div class="h-28 md:h-36 bg-slate-800 rounded-xl p-2 border border-slate-700 shrink-0 relative hidden lg:block">
+            <canvas id="fitness-chart"></canvas>
+        </div>
     </div>
-</footer>
-</body>
+
 <script>
-const secretButton = document.getElementById('secretButton');
-const secretButton2 = document.getElementById('secretButton2');
-const allButton = document.getElementById('allButton');
-const themeSound = document.getElementById('themeSound');
+/** 
+ * TrackML - v9.0 ArrayBuffer Edition (Ultimate Zero-Copy CPU Optimization)
+ */
 
-secretButton2.addEventListener('click', () => {
-  secretSound.currentTime= 0;
-  secretSound.play().catch(err => {
-    console.warn('Secret sound failed:', err);
-  })
-})
+const CANVAS_WIDTH = 1200;
+const CANVAS_HEIGHT = 900;
+const CAR_WIDTH = 14;
+const CAR_HEIGHT = 7;
+const SENSOR_LENGTH = 180;
+const SENSOR_ANGLES = [-Math.PI/2, -Math.PI/3, -Math.PI/6, 0, Math.PI/6, Math.PI/3, Math.PI/2];
+const SENSOR_COUNT = SENSOR_ANGLES.length;
+const STORAGE_KEY_TRACKS = 'trackml_tracks_v9.0';
 
-let state = 0;
+const SETTING_DESCRIPTIONS = {
+    engineToggle: "CPU uses a Zero-Copy Transferable Buffer utilizing 100% of physical cores simultaneously. GPU uses WebGL pipelining.",
+    speedMultiplier: "Simulation cycles per frame. High values train extremely fast.",
+    populationSize: "Number of cars per generation. High values scale seamlessly across CPU cores.",
+    eliteClones: "Top performers copied to the next generation without mutation. Prevents regression.",
+    mutationRate: "Randomness in brain evolution. 25% provides excellent exploratory learning.",
+    hiddenLayers: "Brain complexity. More layers = smarter but heavier computation.",
+    initialTTL: "Time to Live. Frames allowed before death if no checkpoint is reached.",
+    targetLaps: "Laps needed to trigger the next generation automatically.",
+    maxSpeed: "Top speed. Higher speeds require faster AI reaction times.",
+    acceleration: "Engine power.", turnSpeed: "Steering sensitivity.", grip: "Lateral Friction. 96% is balanced."
+};
 
-themeSound.addEventListener('ended', () => {
-    themeSound2.play().catch(err => {
-    console.warn('Theme2 failed:', err);});
-    themeSound2.loop = true;
-    });
+const Storage = {
+    saveTracks: (t) => localStorage.setItem(STORAGE_KEY_TRACKS, JSON.stringify(t)),
+    getTracks: () => { const t = localStorage.getItem(STORAGE_KEY_TRACKS); return t ? JSON.parse(t) : null; },
+    clearTracks: () => localStorage.removeItem(STORAGE_KEY_TRACKS),
+};
 
-secretButton.addEventListener('click', () => {
-  if (state == 0) {
-    state = 1;
-    themeSound2.load();
-    themeSound.play().catch(err => {
-      console.warn('Theme sound failed:', err);});
-    } else {
-    themeSound.pause();
-    state = 0;}});
+function lerp(a, b, t) { return a + (b - a) * t; }
+function getIntersection(A, B, C, D) {
+    const tTop = (D.x - C.x) * (A.y - C.y) - (D.y - C.y) * (A.x - C.x);
+    const uTop = (C.y - A.y) * (A.x - B.x) - (C.x - A.x) * (A.y - B.y);
+    const bottom = (D.y - C.y) * (B.x - A.x) - (D.x - C.x) * (B.y - A.y);
+    if (bottom !== 0) {
+        const t = tTop / bottom; const u = uTop / bottom;
+        if (t >= 0 && t <= 1 && u >= 0 && u <= 1) return { x: lerp(A.x, B.x, t), y: lerp(A.y, B.y, t) };
+    } return null;
+}
 
+// --- Track Generator ---
+function generateTrackFromPath(id, name, pathInput, width, customStartPos, customStartAngle, zones = [], difficulty = 'easy', decorations = []) {
+    const walls = []; const checkpoints = []; const leftPoly = []; const rightPoly = [];
+    const emptyResult = { id, name, path: pathInput || [], trackWidth: width, walls: [], checkpoints: [], startPos: {x:100,y:100}, startAngle: 0, zones: zones||[], difficulty, decorations: decorations||[], leftPoly, rightPoly };
 
-let cursor = document.getElementById("cursor");
-let cursorrot = 0;
-let prevx = 0;
+    if (!pathInput || pathInput.length < 2) return emptyResult;
+    let path = [...pathInput];
+    const start = path[0], end = path[path.length - 1];
+    if (Math.hypot(start.x - end.x, start.y - end.y) > 5) path.push({ x: start.x, y: start.y }); else path[path.length - 1] = { x: start.x, y: start.y };
 
-window.addEventListener("mousemove", function (event) {
-  const scale = 1; // kannst anpassen falls du scaling machst
-  const speed = ((event.clientX / window.innerWidth) - prevx) * 304;
+    const pts = path.slice(0, -1); const len = pts.length; if (len < 2) return emptyResult; 
 
-  cursorrot += Math.min(speed, 10);
-  cursorrot = Math.max(Math.min(cursorrot, 100), -100); // Begrenzung
+    for(let i=0; i<len; i++) {
+        const curr = pts[i], prev = pts[(i - 1 + len) % len], next = pts[(i + 1) % len];
+        let dx1 = curr.x - prev.x, dy1 = curr.y - prev.y, d1 = Math.hypot(dx1, dy1); if(d1>0){ dx1/=d1; dy1/=d1; }
+        let dx2 = next.x - curr.x, dy2 = next.y - curr.y, d2 = Math.hypot(dx2, dy2); if(d2>0){ dx2/=d2; dy2/=d2; }
+        let tx = dx1 + dx2, ty = dy1 + dy2, tlen = Math.hypot(tx, ty);
+        let nx, ny; if (tlen < 0.001) { nx = -dy1; ny = dx1; } else { tx /= tlen; ty /= tlen; nx = -ty; ny = tx; }
 
-  cursor.style.left = (event.clientX - 6) + "px";
-  cursor.style.top = (event.clientY - 2) + "px";
-  cursor.style.transform = `rotate(${cursorrot}deg) scale(${scale})`;
+        let miterLen = width / Math.max(0.1, (nx * (-dy1) + ny * dx1)); 
+        miterLen = Math.min(miterLen, width * 1.0, Math.hypot(curr.x-prev.x, curr.y-prev.y)*0.8, Math.hypot(next.x-curr.x, next.y-curr.y)*0.8);
+        
+        leftPoly.push({ x: curr.x + nx * miterLen, y: curr.y + ny * miterLen });
+        rightPoly.push({ x: curr.x - nx * miterLen, y: curr.y - ny * miterLen });
+    }
 
-  prevx = event.clientX / window.innerWidth;
-});
+    for(let i=0; i < len; i++) {
+        const i2 = (i+1)%len;
+        const w1 = { p1: leftPoly[i], p2: leftPoly[i2], segmentIndex: i }; w1.center = { x: (w1.p1.x + w1.p2.x)/2, y: (w1.p1.y + w1.p2.y)/2 }; walls.push(w1);
+        const w2 = { p1: rightPoly[i], p2: rightPoly[i2], segmentIndex: i }; w2.center = { x: (w2.p1.x + w2.p2.x)/2, y: (w2.p1.y + w2.p2.y)/2 }; walls.push(w2);
+        checkpoints.push({ index: i, p1: leftPoly[i], p2: rightPoly[i], center: pts[i] });
+    }
+    
+    let finalStartAngle = 0;
+    if (customStartAngle !== undefined && customStartAngle !== null) finalStartAngle = customStartAngle;
+    else if (pts.length > 1) finalStartAngle = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x);
 
+    let finalStartPos = customStartPos || {x:pts[0].x, y:pts[0].y};
+    
+    return { id, name, path, trackWidth: width, walls, checkpoints, startPos: finalStartPos, startAngle: finalStartAngle, zones, difficulty, decorations, leftPoly, rightPoly };
+}
 
-// "Zurückschwingen" (Inertia-Effekt)
-setInterval(() => {
-  if (cursorrot > 0) {
-    cursorrot = Math.max(cursorrot * 0.85, 0);
-  } else if (cursorrot < 0) {
-    cursorrot = Math.min(cursorrot * 0.85, 0);
-  }
-  cursor.style.transform = `rotate(${cursorrot}deg) scale(1)`;
-}, 16);
+// --- ULTRA OPTIMIZED ZERO-COPY WEB WORKER ---
+const workerScript = `
+    const CAR_WIDTH = 14; const CAR_HEIGHT = 7; const SENSOR_LENGTH = 180;
+    const SENSOR_ANGLES = [-Math.PI/2, -Math.PI/3, -Math.PI/6, 0, Math.PI/6, Math.PI/3, Math.PI/2];
 
-const hoverSound = document.getElementById('hoverSound');
+    let cachedTrack = null;
+    let cachedConfig = null;
+    let localCars = [];
 
-document.querySelectorAll('a.sound').forEach(link => {
-  link.addEventListener('mouseenter', () => {
-    hoverSound.currentTime = 0;
-    hoverSound.play().catch(err => {
-      console.warn('Hover sound failed:', err);
-    });
-  });})
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function getIntersection(A, B, C, D) {
+        const tTop = (D.x - C.x) * (A.y - C.y) - (D.y - C.y) * (A.x - C.x);
+        const uTop = (C.y - A.y) * (A.x - B.x) - (C.x - A.x) * (A.y - B.y);
+        const bottom = (D.y - C.y) * (B.x - A.x) - (D.x - C.x) * (B.y - A.y);
+        if (bottom !== 0) {
+            const t = tTop / bottom; const u = uTop / bottom;
+            if (t >= 0 && t <= 1 && u >= 0 && u <= 1) return { x: lerp(A.x, B.x, t), y: lerp(A.y, B.y, t) };
+        } return null;
+    }
+
+    function feedForwardCPU(brain, inputs) {
+        const hL = new Float32Array(brain.biasH.length); const oL = new Float32Array(brain.biasO.length);
+        for (let i = 0; i < hL.length; i++) {
+            let sum = 0; for (let j = 0; j < inputs.length; j++) sum += inputs[j] * brain.weightsIH[j][i];
+            hL[i] = Math.tanh(sum + brain.biasH[i]);
+        }
+        for (let i = 0; i < oL.length; i++) {
+            let sum = 0; for (let j = 0; j < hL.length; j++) sum += hL[j] * brain.weightsHO[j][i];
+            oL[i] = Math.tanh(sum + brain.biasO[i]);
+        }
+        return Array.from(oL);
+    }
+
+    function updateCar(car, walls, checkpoints, zones, config) {
+        if (car.crashed) return;
+        car.timeToLive--; car.framesAlive++;
+        if (car.timeToLive <= 0) { car.crashed = true; return; }
+
+        const prevX = car.x, prevY = car.y;
+        const steer = (car.inputs && !isNaN(car.inputs[0])) ? car.inputs[0] : 0;
+        const throttle = (car.inputs && !isNaN(car.inputs[1])) ? car.inputs[1] : 0;
+
+        const speedFactor = Math.min(car.speed / 4.0, 1.0); 
+        car.angle += steer * config.turnSpeed * (0.2 + 0.8 * speedFactor); 
+
+        const cosA = Math.cos(car.angle), sinA = Math.sin(car.angle);
+        let vx = car.vx, vy = car.vy;
+
+        if (throttle > 0) { vx += cosA * throttle * config.acceleration; vy += sinA * throttle * config.acceleration; } 
+        else { vx *= 0.95; vy *= 0.95; }
+
+        const latVel = vx * (-sinA) + vy * cosA;
+        let grip = config.grip; if(Math.abs(latVel) > 2.5) grip *= 0.8;
+        
+        vx += (-sinA) * -latVel * grip; 
+        vy += cosA * -latVel * grip;
+        vx *= 0.99; vy *= 0.99;
+        
+        const speed = Math.hypot(vx, vy);
+        if(speed > config.maxSpeed) { const r = config.maxSpeed/speed; vx *= r; vy *= r; }
+
+        car.vx = vx; car.vy = vy; car.speed = speed;
+        car.x += vx; car.y += vy;
+        car.fitness += (speed / config.maxSpeed) * 0.1;
+
+        if(car.x < -100 || car.x > 1300 || car.y < -100 || car.y > 1000) { car.crashed = true; return; }
+
+        const totalSegs = checkpoints.length;
+        let curSeg = checkpoints[car.nextCheckpointIndex] ? checkpoints[car.nextCheckpointIndex].index : 0;
+        
+        const validSegs = [ 
+            (curSeg - 2 + totalSegs) % totalSegs, (curSeg - 1 + totalSegs) % totalSegs, curSeg, 
+            (curSeg + 1) % totalSegs, (curSeg + 2) % totalSegs, (curSeg + 3) % totalSegs
+        ];
+        
+        const nearbyWalls = [];
+        for(let i=0; i<walls.length; i++) {
+            if(walls[i].segmentIndex === undefined || validSegs.includes(walls[i].segmentIndex)) nearbyWalls.push(walls[i]);
+        }
+
+        const hw = CAR_WIDTH/2, hh = CAR_HEIGHT/2;
+        const corners = [
+            {x: car.x + cosA*hw - sinA*hh, y: car.y + sinA*hw + cosA*hh},
+            {x: car.x + cosA*hw + sinA*hh, y: car.y + sinA*hw - cosA*hh},
+            {x: car.x - cosA*hw + sinA*hh, y: car.y - sinA*hw - cosA*hh},
+            {x: car.x - cosA*hw - sinA*hh, y: car.y - sinA*hw + cosA*hh}
+        ];
+
+        for (let w of nearbyWalls) {
+            if (getIntersection({x:prevX, y:prevY}, {x:car.x, y:car.y}, w.p1, w.p2)) { car.crashed = true; car.fitness -= 50; return; }
+            for(let c=0; c<4; c++) {
+                if (getIntersection(corners[c], corners[(c+1)%4], w.p1, w.p2)) { car.crashed = true; car.fitness -= 50; return; }
+            }
+        }
+
+        let fitMult = 1.0;
+        for (let z of zones) {
+            if ((car.x-z.x)**2 + (car.y-z.y)**2 < z.radius**2) {
+                if (z.type === 'speed' && car.speed > config.maxSpeed * 0.7) car.fitness += 2.0;
+                else if (z.type === 'precision') car.fitness += 2.0;
+                else if (z.type === 'focus') fitMult = 3.0;
+            }
+        }
+
+        const nCP = checkpoints[car.nextCheckpointIndex];
+        if (nCP) {
+            const cx = (nCP.p1.x+nCP.p2.x)/2, cy = (nCP.p1.y+nCP.p2.y)/2;
+            if ((car.x-cx)**2 + (car.y-cy)**2 < 2500) { 
+                 if (getIntersection({x:prevX, y:prevY}, {x:car.x, y:car.y}, nCP.p1, nCP.p2) || ((car.x-cx)**2+(car.y-cy)**2 < 400)) { 
+                    car.checkpointsReached++; car.nextCheckpointIndex = (car.nextCheckpointIndex + 1) % checkpoints.length;
+                    car.timeToLive += 150; if (car.timeToLive > 600) car.timeToLive = 600;
+                    car.fitness += 500 * fitMult; 
+                    if (car.nextCheckpointIndex === 0 && checkpoints.length > 2) {
+                        car.completedLaps++; 
+                        car.lapTimes.push(car.framesAlive); 
+                        car.lastLapTime = (car.lapTimes[car.lapTimes.length-1] - (car.lapTimes[car.lapTimes.length-2]||0)) / 60;
+                        car.fitness += 3000 * fitMult; 
+                    }
+                 }
+            }
+        }
+
+        car.sensors = [];
+        for (let i = 0; i < SENSOR_ANGLES.length; i++) {
+            let rA = car.angle + SENSOR_ANGLES[i];
+            let ex = car.x + Math.cos(rA) * SENSOR_LENGTH, ey = car.y + Math.sin(rA) * SENSOR_LENGTH;
+            let minOffset = 1;
+            for (let w of nearbyWalls) {
+                 const touch = getIntersection({x:car.x,y:car.y}, {x:ex,y:ey}, w.p1, w.p2);
+                 if (touch) minOffset = Math.min(minOffset, Math.sqrt((touch.x-car.x)**2 + (touch.y-car.y)**2) / SENSOR_LENGTH);
+            }
+            car.sensors.push(1 - minOffset);
+        }
+
+        const tX = (nCP.p1.x + nCP.p2.x)/2, tY = (nCP.p1.y + nCP.p2.y)/2;
+        let relAng = Math.atan2(tY - car.y, tX - car.x) - car.angle;
+        while(relAng > Math.PI) relAng -= 2*Math.PI; while(relAng < -Math.PI) relAng += 2*Math.PI;
+        
+        car.sensorsInputs = [...car.sensors, car.speed / config.maxSpeed, relAng / Math.PI];
+        car.inputs = feedForwardCPU(car.brain, car.sensorsInputs);
+    }
+
+    self.onmessage = function(e) {
+        if(e.data.type === 'initTrack') { cachedTrack = e.data.track; cachedConfig = e.data.config; }
+        else if(e.data.type === 'initCars') { localCars = e.data.cars; }
+        else if(e.data.type === 'run') {
+            const iters = e.data.iters;
+            let maxLaps = 0; let allCrashed = true;
+
+            for(let i=0; i<iters; i++) {
+                allCrashed = true;
+                for(let c of localCars) {
+                    if(!c.crashed) {
+                        updateCar(c, cachedTrack.walls, cachedTrack.checkpoints, cachedTrack.zones, cachedConfig);
+                        allCrashed = false;
+                        if(c.completedLaps > maxLaps) maxLaps = c.completedLaps;
+                    }
+                }
+                if(allCrashed || maxLaps >= cachedConfig.targetLaps) break;
+            }
+
+            // ZERO-COPY BUFFER (11 Floats per car)
+            const buffer = new Float32Array(localCars.length * 11);
+            for(let i=0; i<localCars.length; i++) {
+                let c = localCars[i];
+                buffer[i*11] = c.id;
+                buffer[i*11+1] = c.crashed ? 1 : 0;
+                buffer[i*11+2] = c.x;
+                buffer[i*11+3] = c.y;
+                buffer[i*11+4] = c.angle;
+                buffer[i*11+5] = c.speed;
+                buffer[i*11+6] = c.inputs ? c.inputs[0] : 0;
+                buffer[i*11+7] = c.inputs ? c.inputs[1] : 0;
+                buffer[i*11+8] = c.completedLaps;
+                buffer[i*11+9] = c.fitness;
+                buffer[i*11+10] = c.lastLapTime || 0;
+            }
+            // Transfer ownership of array back to main thread 
+            self.postMessage({ type: 'done', buffer, allCrashed, maxLaps }, [buffer.buffer]);
+        }
+    };
+`;
+
+const Engine = {
+    mode: 'CPU', 
+    gpuInstance: null, kernelIH: null, kernelHO: null, workers: [], coreCount: 1, gpuData: { wIH: null, bH: null, wHO: null, bO: null }, 
+
+    init: function() {
+        this.coreCount = navigator.hardwareConcurrency || 4;
+        document.getElementById('core-count').innerText = `${this.coreCount} Cores Active`;
+        
+        const blob = new Blob([workerScript], {type: 'application/javascript'});
+        const url = URL.createObjectURL(blob);
+        for(let i=0; i<this.coreCount; i++) this.workers.push(new Worker(url));
+
+        if(typeof GPU !== 'undefined') {
+            try { this.gpuInstance = new GPU.GPU({ mode: 'gpu' }); } catch(e) {}
+        }
+        this.setMode('CPU');
+    },
+
+    setMode: function(mode) {
+        this.mode = mode;
+        const icon = document.getElementById('engine-icon'); const label = document.getElementById('engine-label');
+        if(mode === 'CPU') {
+            icon.setAttribute('data-lucide', 'cpu'); label.innerText = `CPU Mode (${this.coreCount} Threads)`;
+            document.getElementById('btn-eng-cpu').className = "flex-1 text-[10px] py-1 rounded bg-blue-600 text-white font-bold transition-all flex justify-center items-center gap-1";
+            document.getElementById('btn-eng-gpu').className = "flex-1 text-[10px] py-1 rounded text-slate-400 hover:text-white transition-all flex justify-center items-center gap-1";
+        } else {
+            icon.setAttribute('data-lucide', 'monitor'); label.innerText = "GPU Mode (Accelerated Pipelining)";
+            document.getElementById('btn-eng-gpu').className = "flex-1 text-[10px] py-1 rounded bg-blue-600 text-white font-bold transition-all flex justify-center items-center gap-1";
+            document.getElementById('btn-eng-cpu').className = "flex-1 text-[10px] py-1 rounded text-slate-400 hover:text-white transition-all flex justify-center items-center gap-1";
+        }
+        if(window.lucide) lucide.createIcons();
+    },
+
+    updateWorkerTrack: function(track, config) {
+        const payload = { type: 'initTrack', track: { walls: track.walls, checkpoints: track.checkpoints, zones: track.zones }, config };
+        this.workers.forEach(w => w.postMessage(payload));
+    },
+    
+    updateWorkerCars: function(cars) {
+        const chunkSize = Math.ceil(cars.length / this.workers.length);
+        this.workers.forEach((w, i) => w.postMessage({ type: 'initCars', cars: cars.slice(i*chunkSize, (i+1)*chunkSize) }));
+    },
+
+    createBrain: function(iC, hC, oC) {
+        const r = (r, c) => Array(r).fill(0).map(() => Array(c).fill(0).map(() => Math.random() * 2 - 1));
+        const b = (c) => Array(c).fill(0).map(() => Math.random() * 2 - 1);
+        return { weightsIH: r(iC, hC), weightsHO: r(hC, oC), biasH: b(hC), biasO: b(oC) };
+    },
+    copyBrain: function(b) { return { weightsIH: b.weightsIH.map(r=>[...r]), weightsHO: b.weightsHO.map(r=>[...r]), biasH: [...b.biasH], biasO: [...b.biasO] }; },
+    mutateBrain: function(b, r) {
+        const mut = v => Math.random() < r ? v + (Math.random() * 2 - 1) * 0.5 : v;
+        b.weightsIH = b.weightsIH.map(rw => rw.map(mut)); b.weightsHO = b.weightsHO.map(rw => rw.map(mut));
+        b.biasH = b.biasH.map(mut); b.biasO = b.biasO.map(mut);
+    },
+
+    runCPUWorkers: function(iters) {
+        return new Promise(resolve => {
+            let completed = 0; let shouldEvolve = false; let totalMaxLaps = 0;
+            
+            this.workers.forEach(w => {
+                w.onmessage = (e) => {
+                    const { buffer, allCrashed, maxLaps } = e.data;
+                    if(maxLaps > totalMaxLaps) totalMaxLaps = maxLaps;
+                    if(allCrashed || maxLaps >= app.state.targetLaps) shouldEvolve = true;
+                    
+                    // Unpack highly optimized float array 
+                    for(let i=0; i<buffer.length/11; i++) {
+                        const id = buffer[i*11];
+                        const c = app.state.cars[id];
+                        if(!c) continue;
+                        
+                        c.crashed = buffer[i*11+1] === 1;
+                        c.x = buffer[i*11+2];
+                        c.y = buffer[i*11+3];
+                        c.angle = buffer[i*11+4];
+                        c.speed = buffer[i*11+5];
+                        c.inputs = [buffer[i*11+6], buffer[i*11+7]];
+                        
+                        const prevLaps = c.completedLaps;
+                        c.completedLaps = buffer[i*11+8];
+                        c.fitness = buffer[i*11+9];
+                        
+                        if(c.completedLaps > prevLaps) {
+                            c.isLapFinished = true;
+                            const time = buffer[i*11+10];
+                            if(!app.state.bestTimes.gen || time < app.state.bestTimes.gen) app.state.bestTimes.gen = time;
+                            if(!app.state.bestTimes.all || time < app.state.bestTimes.all) app.state.bestTimes.all = time;
+                        }
+                    }
+                    
+                    completed++;
+                    if(completed === this.workers.length) {
+                        const globalCrashed = app.state.cars.every(c => c.crashed);
+                        resolve({ triggerEvolve: globalCrashed || totalMaxLaps >= app.state.targetLaps });
+                    }
+                };
+                w.postMessage({ type: 'run', iters });
+            });
+        });
+    },
+
+    compileGPU: function(popSize, inSize, hidSize, outSize) {
+        if(!this.gpuInstance) return;
+        
+        // Fast Softsign Math replacing Math.exp to prevent NaN crashes
+        this.kernelIH = this.gpuInstance.createKernel(function(inputs, weights, biases, inSz) {
+            let sum = 0; for (let i = 0; i < inSz; i++) { sum += inputs[this.thread.y][i] * weights[this.thread.y][i][this.thread.x]; }
+            let v = sum + biases[this.thread.y][this.thread.x];
+            return v / (1.0 + Math.abs(v));
+        }).setOutput([hidSize, popSize]).setPipeline(true); 
+
+        this.kernelHO = this.gpuInstance.createKernel(function(hL, weights, biases, hidSz) {
+            let sum = 0; for (let i = 0; i < hidSz; i++) { sum += hL[this.thread.y][i] * weights[this.thread.y][i][this.thread.x]; }
+            let v = sum + biases[this.thread.y][this.thread.x];
+            return v / (1.0 + Math.abs(v));
+        }).setOutput([outSize, popSize]);
+    },
+
+    updateGPUData: function(cars) {
+        this.gpuData.wIH = cars.map(c => c.brain.weightsIH); this.gpuData.bH = cars.map(c => c.brain.biasH);
+        this.gpuData.wHO = cars.map(c => c.brain.weightsHO); this.gpuData.bO = cars.map(c => c.brain.biasO);
+    },
+
+    computeGPU: function(cars) {
+        if(!this.kernelIH || !this.kernelHO) return;
+        const inputs = cars.map(c => c.sensorsInputs);
+        try {
+            const hLTexture = this.kernelIH(inputs, this.gpuData.wIH, this.gpuData.bH, SENSOR_COUNT+2);
+            const outs = this.kernelHO(hLTexture, this.gpuData.wHO, this.gpuData.bO, app.state.hiddenLayers);
+            hLTexture.delete();
+            for(let i=0; i<cars.length; i++) cars[i].inputs = Array.from(outs[i]);
+        } catch(e) {} 
+    }
+};
+
+// Main App Physics for GPU mode
+function updateCarGPU(car, walls, checkpoints, zones, config) {
+    if (car.crashed) return;
+    car.timeToLive--; car.framesAlive++;
+    if (car.timeToLive <= 0) { car.crashed = true; return; }
+
+    const prevX = car.x, prevY = car.y;
+    const steer = (car.inputs && !isNaN(car.inputs[0])) ? car.inputs[0] : 0;
+    const throttle = (car.inputs && !isNaN(car.inputs[1])) ? car.inputs[1] : 0;
+
+    const speedFactor = Math.min(car.speed / 4.0, 1.0); car.angle += steer * config.turnSpeed * (0.2 + 0.8 * speedFactor); 
+    const cosA = Math.cos(car.angle), sinA = Math.sin(car.angle); let vx = car.vx, vy = car.vy;
+
+    if (throttle > 0) { vx += cosA * throttle * config.acceleration; vy += sinA * throttle * config.acceleration; } else { vx *= 0.95; vy *= 0.95; }
+    const latVel = vx * (-sinA) + vy * cosA; let grip = config.grip; if(Math.abs(latVel) > 2.5) grip *= 0.8;
+    vx += (-sinA) * -latVel * grip; vy += cosA * -latVel * grip; vx *= 0.99; vy *= 0.99;
+    
+    const speed = Math.hypot(vx, vy); if(speed > config.maxSpeed) { const r = config.maxSpeed/speed; vx *= r; vy *= r; }
+    car.vx = vx; car.vy = vy; car.speed = speed; car.x += vx; car.y += vy;
+    car.fitness += (speed / config.maxSpeed) * 0.1;
+
+    if(car.x < -100 || car.x > CANVAS_WIDTH+100 || car.y < -100 || car.y > CANVAS_HEIGHT+100) { car.crashed = true; return; }
+
+    const totalSegs = checkpoints.length; let curSeg = checkpoints[car.nextCheckpointIndex]?.index || 0;
+    const validSegs = [ (curSeg - 2 + totalSegs) % totalSegs, (curSeg - 1 + totalSegs) % totalSegs, curSeg, (curSeg + 1) % totalSegs, (curSeg + 2) % totalSegs, (curSeg + 3) % totalSegs ];
+    const nearbyWalls = walls.filter(w => validSegs.includes(w.segmentIndex));
+    const hw = CAR_WIDTH/2, hh = CAR_HEIGHT/2;
+    const corners = [ {x: car.x + cosA*hw - sinA*hh, y: car.y + sinA*hw + cosA*hh}, {x: car.x + cosA*hw + sinA*hh, y: car.y + sinA*hw - cosA*hh}, {x: car.x - cosA*hw + sinA*hh, y: car.y - sinA*hw - cosA*hh}, {x: car.x - cosA*hw - sinA*hh, y: car.y - sinA*hw + cosA*hh} ];
+
+    for (let w of nearbyWalls) {
+        if (getIntersection({x:prevX, y:prevY}, {x:car.x, y:car.y}, w.p1, w.p2)) { car.crashed = true; car.fitness -= 50; return; }
+        for(let c=0; c<4; c++) if (getIntersection(corners[c], corners[(c+1)%4], w.p1, w.p2)) { car.crashed = true; car.fitness -= 50; return; }
+    }
+
+    let fitMult = 1.0;
+    for (let z of zones) {
+        if ((car.x-z.x)**2 + (car.y-z.y)**2 < z.radius**2) {
+            if (z.type === 'speed' && car.speed > config.maxSpeed * 0.7) car.fitness += 2.0; else if (z.type === 'precision') car.fitness += 2.0; else if (z.type === 'focus') fitMult = 3.0;
+        }
+    }
+
+    const nCP = checkpoints[car.nextCheckpointIndex];
+    if (nCP) {
+        const cx = (nCP.p1.x+nCP.p2.x)/2, cy = (nCP.p1.y+nCP.p2.y)/2;
+        if ((car.x-cx)**2 + (car.y-cy)**2 < 2500) { 
+             if (getIntersection({x:prevX, y:prevY}, {x:car.x, y:car.y}, nCP.p1, nCP.p2) || ((car.x-cx)**2+(car.y-cy)**2 < 400)) { 
+                car.checkpointsReached++; car.nextCheckpointIndex = (car.nextCheckpointIndex + 1) % checkpoints.length;
+                car.timeToLive += 150; if (car.timeToLive > 600) car.timeToLive = 600; car.fitness += 500 * fitMult; 
+                if (car.nextCheckpointIndex === 0 && checkpoints.length > 2) {
+                    car.completedLaps++; car.isLapFinished = true; car.lapTimes.push(car.framesAlive); car.fitness += 3000 * fitMult; 
+                }
+             }
+        }
+    }
+
+    car.sensors = [];
+    for (let i = 0; i < SENSOR_ANGLES.length; i++) {
+        let rA = car.angle + SENSOR_ANGLES[i]; let ex = car.x + Math.cos(rA) * SENSOR_LENGTH, ey = car.y + Math.sin(rA) * SENSOR_LENGTH;
+        let minOffset = 1;
+        for (let w of nearbyWalls) {
+             const touch = getIntersection({x:car.x,y:car.y}, {x:ex,y:ey}, w.p1, w.p2);
+             if (touch) minOffset = Math.min(minOffset, Math.sqrt((touch.x-car.x)**2 + (touch.y-car.y)**2) / SENSOR_LENGTH);
+        }
+        car.sensors.push(1 - minOffset);
+    }
+
+    const tX = (nCP.p1.x + nCP.p2.x)/2, tY = (nCP.p1.y + nCP.p2.y)/2;
+    let relAng = Math.atan2(tY - car.y, tX - car.x) - car.angle;
+    while(relAng > Math.PI) relAng -= 2*Math.PI; while(relAng < -Math.PI) relAng += 2*Math.PI;
+    car.sensorsInputs = [...car.sensors, car.speed / config.maxSpeed, relAng / Math.PI];
+}
+
+// --- Main Application ---
+const app = {
+    state: {
+        populationSize: 200, eliteClones: 5, targetLaps: 2, mutationRate: 0.25, hiddenLayers: 6, initialTTL: 200,
+        physics: { maxSpeed: 14, acceleration: 0.15, turnSpeed: 0.05, grip: 0.96 },
+        tracks: [], currentTrackIndex: 0, cars: [], generation: 1, isRunning: false, speedMultiplier: 3, hyperMode: false,
+        stats: [], globalBest: null, bestTimes: { gen: null, all: null }, isEditing: false, trackToEdit: null,
+        bgCanvas: null
+    },
+
+    init: function() {
+        try {
+            Engine.init();
+            const sT = Storage.getTracks();
+            if (sT && sT.length > 0) {
+                this.state.tracks = sT; 
+                this.renderTrackList();
+                this.switchTrack(0); // Ensures correct mapping & cache initialization
+            } else { 
+                this.resetTracks(true); 
+            }
+            this.initChart();
+            if(window.lucide) lucide.createIcons();
+            this.loop();
+        } catch (e) { console.error("Init Error:", e); Storage.clearTracks(); location.reload(); }
+    },
+
+    setEngine: function(mode) { Engine.setMode(mode); },
+
+    resetTracks: function(reload = true) {
+        const cx = CANVAS_WIDTH/2, cy = CANVAS_HEIGHT/2;
+        const poly = (s, r) => Array.from({length:s},(_,i)=>{const a=(Math.PI*2 * i)/s;return{x:cx+Math.cos(a)*r,y:cy+Math.sin(a)*r}});
+
+        this.state.tracks = [
+            generateTrackFromPath("t1", "The Oval", poly(30, 350), 60),
+            generateTrackFromPath("t2", "Triangle", poly(3, 300), 70), // True 3 points
+            generateTrackFromPath("t3", "Hexagon", poly(6, 350), 60), // True 6 points
+            generateTrackFromPath("t4", "Complex City", [{x:100,y:800},{x:100,y:100},{x:400,y:100},{x:400,y:400},{x:800,y:400},{x:800,y:100},{x:1100,y:100},{x:1100,y:800},{x:800,y:800},{x:800,y:600},{x:400,y:600},{x:400,y:800}], 50),
+            generateTrackFromPath("t5", "The Snake", [{x:100,y:100},{x:1100,y:100},{x:1100,y:300},{x:100,y:300},{x:100,y:500},{x:1100,y:500},{x:1100,y:700},{x:100,y:700},{x:100,y:850},{x:1150,y:850},{x:1150,y:50}], 45),
+            generateTrackFromPath("t6", "The Crossover", [{x:100,y:450}, {x:400,y:150}, {x:800,y:150}, {x:1100,y:450}, {x:800,y:750}, {x:400,y:750}, {x:200,y:550}, {x:1000,y:350}], 40),
+            generateTrackFromPath("t7", "Monza-ish", [{x:200,y:700},{x:500,y:650},{x:800,y:700},{x:1000,y:600},{x:1000,y:200},{x:800,y:100},{x:300,y:100},{x:200,y:300},{x:300,y:400},{x:200,y:500}], 50),
+            generateTrackFromPath("t8", "Double 8", [{x:150,y:450}, {x:600,y:150}, {x:1050,y:450}, {x:600,y:750}, {x:150,y:450}, {x:1050,y:150}, {x:600,y:450}, {x:150,y:750}, {x:1050,y:450}], 40),
+            generateTrackFromPath("t9", "High Speed Ring", [{x:150,y:450}, {x:300,y:150}, {x:900,y:150}, {x:1050,y:450}, {x:900,y:750}, {x:300,y:750}], 60),
+            generateTrackFromPath("t10", "The Spiral", [{x:100,y:100}, {x:1100,y:100}, {x:1100,y:800}, {x:100,y:800}, {x:100,y:250}, {x:900,y:250}, {x:900,y:650}, {x:250,y:650}, {x:250,y:400}, {x:700,y:400}, {x:700,y:500}, {x:400,y:500}], 35),
+            generateTrackFromPath("t11", "Monaco", [{x:100,y:800}, {x:1100,y:800}, {x:1100,y:100}, {x:600,y:100}, {x:600,y:400}, {x:200,y:400}, {x:200,y:200}, {x:100,y:200}], 35),
+            generateTrackFromPath("t12", "Infinity Loop", [{x:200,y:450},{x:200,y:200},{x:500,y:200},{x:700,y:700},{x:1000,y:700},{x:1000,y:450},{x:1000,y:200},{x:700,y:200},{x:500,y:700},{x:200,y:700}], 40)
+        ];
+        Storage.saveTracks(this.state.tracks);
+        if(reload) { this.switchTrack(0); } else { this.renderTrackList(); }
+    },
+
+    get currentTrack() { return this.state.tracks[this.state.currentTrackIndex]; },
+
+    initPopulation: function(loadedBrain) {
+        if(!this.state.tracks.length) return;
+        const track = this.currentTrack; this.state.globalBest = null; const newCars = [];
+
+        for(let i=0; i<this.state.populationSize; i++) {
+            let brain;
+            if(loadedBrain) { brain = Engine.copyBrain(loadedBrain); if(i>0) Engine.mutateBrain(brain, this.state.mutationRate); } 
+            else { brain = Engine.createBrain(SENSOR_COUNT+2, this.state.hiddenLayers, 2); }
+            newCars.push({
+                id: i, x: track.startPos.x, y: track.startPos.y, angle: track.startAngle, vx: 0, vy: 0, speed: 0, 
+                color: `hsl(${Math.random()*360},80%,60%)`, brain, fitness: 0, crashed: false, sensors: [], sensorsInputs: Array(SENSOR_COUNT+2).fill(0), inputs: [0,0], checkpointsReached: 0,
+                timeToLive: this.state.initialTTL, nextCheckpointIndex: 1, framesAlive: 0, lapTimes: [], completedLaps: 0, isLapFinished: false
+            });
+        }
+        this.state.cars = newCars; this.state.bestTimes.gen = null; 
+        
+        Engine.compileGPU(this.state.populationSize, SENSOR_COUNT+2, this.state.hiddenLayers, 2);
+        Engine.updateGPUData(this.state.cars);
+        Engine.updateWorkerCars(this.state.cars);
+        this.updateUI();
+    },
+
+    evolve: function() {
+        if(this.state.cars.length === 0) return;
+        const sorted = [...this.state.cars].sort((a,b) => b.fitness - a.fitness);
+        const best = sorted[0];
+        
+        if(!this.state.globalBest || best.fitness > this.state.globalBest.fitness) this.state.globalBest = { brain: Engine.copyBrain(best.brain), fitness: best.fitness };
+
+        const avgFit = this.state.cars.reduce((a,c)=>a+c.fitness,0)/this.state.cars.length;
+        this.state.stats.push({ gen: this.state.generation, best: best.fitness, avg: avgFit, time: this.state.bestTimes.gen ? this.state.bestTimes.gen.toFixed(2) : null }); 
+        this.updateChart();
+
+        const newCars = []; const track = this.currentTrack;
+        if(this.state.globalBest) {
+            for(let k=0; k<Math.min(this.state.eliteClones, this.state.populationSize); k++) {
+                newCars.push({
+                    id: k, x: track.startPos.x, y: track.startPos.y, angle: track.startAngle, vx: 0, vy: 0, speed: 0, color: k===0?'#22c55e':'#84cc16',
+                    brain: Engine.copyBrain(this.state.globalBest.brain), fitness: 0, crashed: false, sensors: [], sensorsInputs: Array(SENSOR_COUNT+2).fill(0), inputs: [0,0],
+                    timeToLive: this.state.initialTTL, nextCheckpointIndex: 1, framesAlive: 0, lapTimes: [], completedLaps: 0, isLapFinished: false
+                });
+            }
+        }
+
+        const parentPoolSize = Math.max(2, Math.floor(sorted.length * 0.2)); 
+        for(let i=newCars.length; i<this.state.populationSize; i++) {
+            const p1 = sorted[Math.floor(Math.random() * parentPoolSize)]; 
+            const p2 = sorted[Math.floor(Math.random() * parentPoolSize)];
+            
+            // True Genetic Crossover
+            const childBrain = Engine.createBrain(SENSOR_COUNT+2, this.state.hiddenLayers, 2);
+            for(let j=0; j<childBrain.weightsIH.length; j++) {
+                for(let k=0; k<childBrain.weightsIH[j].length; k++) childBrain.weightsIH[j][k] = Math.random() < 0.5 ? p1.brain.weightsIH[j][k] : p2.brain.weightsIH[j][k];
+            }
+            for(let j=0; j<childBrain.weightsHO.length; j++) {
+                for(let k=0; k<childBrain.weightsHO[j].length; k++) childBrain.weightsHO[j][k] = Math.random() < 0.5 ? p1.brain.weightsHO[j][k] : p2.brain.weightsHO[j][k];
+            }
+            childBrain.biasH = childBrain.biasH.map((v, i) => Math.random() < 0.5 ? p1.brain.biasH[i] : p2.brain.biasH[i]);
+            childBrain.biasO = childBrain.biasO.map((v, i) => Math.random() < 0.5 ? p1.brain.biasO[i] : p2.brain.biasO[i]);
+
+            Engine.mutateBrain(childBrain, this.state.mutationRate);
+            newCars.push({
+                id: i, x: track.startPos.x, y: track.startPos.y, angle: track.startAngle, vx: 0, vy: 0, speed: 0, color: `hsl(${Math.random()*360},80%,60%)`,
+                brain: childBrain, fitness: 0, crashed: false, sensors: [], sensorsInputs: Array(SENSOR_COUNT+2).fill(0), inputs: [0,0],
+                timeToLive: this.state.initialTTL, nextCheckpointIndex: 1, framesAlive: 0, lapTimes: [], completedLaps: 0, isLapFinished: false
+            });
+        }
+        this.state.cars = newCars; this.state.generation++; this.state.bestTimes.gen = null; 
+        
+        Engine.updateGPUData(this.state.cars);
+        Engine.updateWorkerCars(this.state.cars);
+        this.updateUI();
+    },
+
+    loop: async function() {
+        if(this.state.isRunning && !this.state.isEditing) {
+            const limit = this.state.hyperMode ? 40 : 16; 
+            const iters = this.state.hyperMode ? 500 : this.state.speedMultiplier;
+            const t = this.currentTrack;
+
+            if (Engine.mode === 'CPU') {
+                const result = await Engine.runCPUWorkers(iters);
+                if(result.triggerEvolve) this.evolve();
+
+            } else {
+                const st = performance.now();
+                let maxLaps = 0; let allCrashed = true;
+                for(let i=0; i<iters; i++) {
+                    if (i > 0 && performance.now() - st > limit) break;
+                    Engine.computeGPU(this.state.cars);
+                    allCrashed = true;
+                    for (let c of this.state.cars) {
+                        updateCarGPU(c, t.walls, t.checkpoints, t.zones, this.state.physics);
+                        if(!c.crashed) {
+                            allCrashed = false;
+                            if(c.completedLaps > maxLaps) maxLaps = c.completedLaps;
+                            if(c.isLapFinished) {
+                                const time = (c.lapTimes[c.lapTimes.length-1] - (c.lapTimes[c.lapTimes.length-2]||0)) / 60;
+                                if(!this.state.bestTimes.gen || time < this.state.bestTimes.gen) this.state.bestTimes.gen = time;
+                                if(!this.state.bestTimes.all || time < this.state.bestTimes.all) this.state.bestTimes.all = time;
+                                c.isLapFinished = false; this.updateUI();
+                            }
+                        }
+                    }
+                    if(allCrashed || maxLaps >= this.state.targetLaps) { this.evolve(); break; }
+                }
+            }
+        }
+        
+        this.draw(); 
+        requestAnimationFrame(this.loop.bind(this));
+    },
+
+    cacheBackgroundRender: function() {
+        this.state.bgCanvas = document.createElement('canvas');
+        this.state.bgCanvas.width = CANVAS_WIDTH;
+        this.state.bgCanvas.height = CANVAS_HEIGHT;
+        const ctx = this.state.bgCanvas.getContext('2d');
+        const t = this.currentTrack;
+
+        ctx.fillStyle = '#3a5a40'; ctx.fillRect(0,0,CANVAS_WIDTH,CANVAS_HEIGHT);
+        if(!t) return;
+
+        if (t.leftPoly && t.rightPoly) {
+             ctx.fillStyle = '#343a40';
+             for(let i=0; i<t.leftPoly.length; i++) {
+                 const n = (i+1)%t.leftPoly.length; ctx.beginPath(); ctx.moveTo(t.leftPoly[i].x, t.leftPoly[i].y); ctx.lineTo(t.leftPoly[n].x, t.leftPoly[n].y);
+                 ctx.lineTo(t.rightPoly[n].x, t.rightPoly[n].y); ctx.lineTo(t.rightPoly[i].x, t.rightPoly[i].y); ctx.fill();
+             }
+        }
+        
+        t.zones.forEach(z => { ctx.beginPath(); ctx.arc(z.x, z.y, z.radius, 0, Math.PI*2); ctx.fillStyle = z.type==='speed'?'rgba(239,68,68,0.3)':(z.type==='precision'?'rgba(59,130,246,0.3)':'rgba(168,85,247,0.3)'); ctx.fill(); });
+
+        ctx.lineCap = 'round';
+        ctx.strokeStyle='#e2e8f0'; ctx.lineWidth=4; ctx.beginPath(); t.walls.forEach(w => { ctx.moveTo(w.p1.x, w.p1.y); ctx.lineTo(w.p2.x, w.p2.y); }); ctx.stroke();
+        ctx.strokeStyle='#ef4444'; ctx.lineWidth=4; ctx.setLineDash([15,15]); ctx.beginPath(); t.walls.forEach(w => { ctx.moveTo(w.p1.x, w.p1.y); ctx.lineTo(w.p2.x, w.p2.y); }); ctx.stroke(); ctx.setLineDash([]);
+
+        if(t.decorations) t.decorations.forEach(d => { ctx.save(); ctx.translate(d.x, d.y); ctx.font = "24px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(d.type === 'tree'?"🌲":(d.type === 'rock'?"🪨":"💧"), 0, 0); ctx.restore(); });
+        if(t.checkpoints.length > 0) { const cp = t.checkpoints[0]; ctx.strokeStyle='#ffffff'; ctx.lineWidth=6; ctx.beginPath(); ctx.moveTo(cp.p1.x, cp.p1.y); ctx.lineTo(cp.p2.x, cp.p2.y); ctx.stroke(); ctx.setLineDash([6,6]); ctx.strokeStyle='#000'; ctx.stroke(); ctx.setLineDash([]); }
+    },
+
+    draw: function() {
+        const c = document.getElementById('sim-canvas'); const ctx = c.getContext('2d');
+        
+        if(this.state.isEditing && this.state.trackToEdit) { 
+            ctx.fillStyle = '#3a5a40'; ctx.fillRect(0,0,CANVAS_WIDTH,CANVAS_HEIGHT);
+            editor.draw(ctx); 
+            return; 
+        }
+
+        if(this.state.bgCanvas) ctx.drawImage(this.state.bgCanvas, 0, 0);
+
+        if(!this.state.hyperMode) {
+            // Draw optimization: Culling the render to max 50 top cars out of 200/500 population 
+            let draws = this.state.cars.length > 50 ? [...this.state.cars].sort((a,b)=>b.fitness-a.fitness).slice(0,50) : this.state.cars;
+            const best = this.state.cars.reduce((p,c) => (c.fitness > p.fitness && !c.crashed ? c : p), this.state.cars[0]);
+            
+            if(best && !best.crashed) {
+                const i = best.inputs || [0,0];
+                document.getElementById('tel-steer-l').style.width = i[0] < 0 ? Math.abs(i[0])*50 + '%' : '0%';
+                document.getElementById('tel-steer-r').style.width = i[0] > 0 ? i[0]*50 + '%' : '0%';
+                if(i[1] > 0) { document.getElementById('tel-gas').style.width = i[1]*100 + '%'; document.getElementById('tel-brake').style.width = '0%'; } 
+                else { document.getElementById('tel-gas').style.width = '0%'; document.getElementById('tel-brake').style.width = Math.abs(i[1])*100 + '%'; }
+                document.getElementById('tel-speed').style.width = Math.min((best.speed / this.state.physics.maxSpeed)*100, 100) + '%';
+                document.getElementById('tel-speed-val').innerText = Math.round(best.speed);
+            }
+
+            draws.forEach(c => {
+                if(c.crashed) return;
+                const isB = c === best;
+                ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(c.angle); ctx.scale(1.5,1.5); ctx.globalAlpha = isB?1:0.5;
+                ctx.fillStyle=isB?'#ffffff':c.color; ctx.fillRect(-7, -4, 14, 8);
+                ctx.fillStyle='#0f172a'; ctx.fillRect(-2, -3, 4, 6);
+                ctx.fillStyle='#fbbf24'; ctx.fillRect(6, -3, 1, 2); ctx.fillRect(6, 1, 1, 2);
+                ctx.restore();
+
+                if(isB) {
+                    ctx.globalAlpha=1;
+                    if(c.sensors) {
+                        c.sensors.forEach((s,k) => {
+                            const ang = c.angle + SENSOR_ANGLES[k];
+                            ctx.strokeStyle='rgba(234,179,8,0.2)'; ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(c.x+Math.cos(ang)*SENSOR_LENGTH, c.y+Math.sin(ang)*SENSOR_LENGTH); ctx.stroke();
+                            if(s>0) { const d=(1-s)*SENSOR_LENGTH; ctx.fillStyle='#f59e0b'; ctx.beginPath(); ctx.arc(c.x+Math.cos(ang)*d, c.y+Math.sin(ang)*d, 2, 0, Math.PI*2); ctx.fill(); }
+                        });
+                    }
+                }
+            });
+        }
+    },
+
+    toggleRun: function() { 
+        this.state.isRunning = !this.state.isRunning; 
+        document.getElementById('btn-play').innerHTML = this.state.isRunning ? '<i data-lucide="pause" class="w-4 h-4"></i> <span>Pause</span>' : '<i data-lucide="play" class="w-4 h-4"></i> <span>Start</span>';
+        document.getElementById('btn-play').className = this.state.isRunning ? "flex-1 py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition-all bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500/30" : "flex-1 py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition-all bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 hover:bg-emerald-500/30";
+        if(window.lucide) lucide.createIcons();
+    },
+    toggleHyper: function() { this.state.hyperMode = !this.state.hyperMode; document.getElementById('btn-hyper').classList.toggle('bg-yellow-500'); document.getElementById('btn-hyper').classList.toggle('text-slate-900'); document.getElementById('hyper-banner').classList.toggle('hidden'); },
+
+    reset: function() { 
+        this.state.isRunning=false; this.state.generation=1; this.state.stats=[]; this.state.bestTimes={gen:null,all:null}; this.initPopulation(); 
+        if(this.chart) { this.chart.data.labels = []; this.chart.data.datasets.forEach(d => d.data = []); this.chart.update(); }
+        this.updateUI(); this.toggleRun(); this.toggleRun(); 
+    },
+    
+    updatePhysics: function(k, v) { this.state.physics[k] = parseFloat(v); document.getElementById('val-'+(k==='maxSpeed'?'maxSpeed':(k==='acceleration'?'accel':(k==='turnSpeed'?'turn':'grip')))).innerText = k==='grip'?Math.round(v*100)+'%':v; Engine.updateWorkerTrack(this.currentTrack, this.state.physics); },
+    updateConfig: function(k, v) { 
+        this.state[k] = parseFloat(v); 
+        let id = 'val-'+(k==='populationSize'?'pop':k==='targetLaps'?'laps':k==='speedMultiplier'?'speed':k==='eliteClones'?'elite':k==='mutationRate'?'mut':k==='hiddenLayers'?'hidden':'ttl');
+        let d = v; if(k==='speedMultiplier') d+='x'; if(k==='mutationRate') d=Math.round(v*100)+'%';
+        const el = document.getElementById(id); if(el) el.innerText = d; 
+        if(k === 'populationSize' || k === 'hiddenLayers') {
+            Engine.compileGPU(this.state.populationSize, SENSOR_COUNT+2, this.state.hiddenLayers, 2);
+            Engine.updateGPUData(this.state.cars);
+        }
+    },
+
+    showInfo: function(k) {
+        const el = document.getElementById('setting-info'); if(!el) return;
+        if(k && SETTING_DESCRIPTIONS[k]) { el.innerHTML = `<span class="text-emerald-400 font-bold block mb-1 uppercase">${k.replace(/([A-Z])/g, ' $1').trim()}</span>${SETTING_DESCRIPTIONS[k]}`; el.className = "text-[10px] text-slate-300 min-h-[50px] border-t border-slate-600 pt-2 mt-2 transition-colors"; } 
+        else { el.innerText = "Hover over a setting to see how it affects the AI and simulation."; el.className = "text-[10px] text-slate-500 italic min-h-[50px] border-t border-slate-600 pt-2 mt-2 transition-colors"; }
+    },
+
+    updateUI: function() {
+        document.getElementById('stat-generation').innerText = this.state.generation;
+        document.getElementById('stat-alive').innerText = this.state.cars.filter(c=>!c.crashed).length;
+        document.getElementById('stat-gen-best').innerText = this.state.bestTimes.gen ? this.state.bestTimes.gen.toFixed(2)+'s' : '--';
+        document.getElementById('stat-all-best').innerText = this.state.bestTimes.all ? this.state.bestTimes.all.toFixed(2)+'s' : '--';
+    },
+
+    saveBrain: function() { if(!this.state.cars.length) return; const b = this.state.cars.reduce((p,c) => c.fitness>p.fitness?c:p); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(b.brain)], {type:'application/json'})); a.download = `trackml-g${this.state.generation}.json`; a.click(); },
+    loadBrain: function(inp) { if(!inp.files[0]) return; const r = new FileReader(); r.onload = e => { try { this.reset(); this.initPopulation(JSON.parse(e.target.result)); } catch(er) { alert('Invalid File'); } }; r.readAsText(inp.files[0]); },
+
+    renderTrackList: function() { const sel = document.getElementById('track-dropdown'); sel.innerHTML = ''; this.state.tracks.forEach((t, i) => { const opt = document.createElement('option'); opt.value = i; opt.text = t.name; opt.selected = this.state.currentTrackIndex === i; sel.appendChild(opt); }); },
+    
+    switchTrack: function(i) {
+        i = parseInt(i); if (i < 0 || i >= this.state.tracks.length) i = 0;
+        this.state.currentTrackIndex = i; this.state.isRunning = false; this.state.generation = 1; this.state.globalBest = null; this.state.stats = []; this.updateChart();
+        document.getElementById('track-dropdown').value = i; const t = this.state.tracks[i];
+        
+        this.cacheBackgroundRender(); 
+        Engine.updateWorkerTrack(t, this.state.physics);
+        this.initPopulation(); 
+        this.updateUI();
+    },
+
+    createNewTrack: function() { 
+        const t = generateTrackFromPath("custom"+Date.now(), "New Track", [{x:200,y:200},{x:400,y:200},{x:400,y:400},{x:200,y:400}], 60); 
+        this.state.isEditing = true; this.state.trackToEdit = t; editor.init(t); this.state.isRunning = false; 
+        document.getElementById('editor-controls').classList.remove('hidden'); 
+        document.getElementById('engine-status').classList.add('hidden');
+    },
+    editTrack: function() { 
+        this.state.isEditing = true; this.state.trackToEdit = JSON.parse(JSON.stringify(this.currentTrack)); 
+        editor.init(this.state.trackToEdit); this.state.isRunning = false; 
+        document.getElementById('editor-controls').classList.remove('hidden'); 
+        document.getElementById('engine-status').classList.add('hidden');
+    },
+    saveTrack: function(t) { 
+        const idx = this.state.tracks.findIndex(tr => tr.id === t.id); if(idx !== -1) this.state.tracks[idx] = t; else { this.state.tracks.push(t); this.state.currentTrackIndex = this.state.tracks.length-1; } Storage.saveTracks(this.state.tracks); 
+        this.state.isEditing = false; document.getElementById('editor-controls').classList.add('hidden'); document.getElementById('engine-status').classList.remove('hidden');
+        this.switchTrack(this.state.currentTrackIndex); this.renderTrackList(); 
+    },
+    deleteTrack: function() { if(confirm("Delete this track?")) { if(this.state.tracks.length > 1) { this.state.tracks.splice(this.state.currentTrackIndex, 1); Storage.saveTracks(this.state.tracks); this.switchTrack(0); this.renderTrackList(); } else alert("Cannot delete last track."); } },
+
+    chart: null,
+    initChart: function() { 
+        const ctx = document.getElementById('fitness-chart').getContext('2d'); 
+        this.chart = new Chart(ctx, { 
+            type: 'line', 
+            data: { 
+                labels: [], 
+                datasets: [
+                    {label:'Best Fitness', data:[], borderColor:'#34d399', backgroundColor:'rgba(52, 211, 153, 0.1)', borderWidth:2, pointRadius:2, fill: true},
+                    {label:'Avg Fitness', data:[], borderColor:'#60a5fa', borderWidth:2, pointRadius:0}
+                ] 
+            }, 
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                scales: { 
+                    x: { display:false }, 
+                    y: { grid: { color: '#334155' } } 
+                }, 
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: { 
+                    legend: { 
+                        display:true, 
+                        labels: { color: '#cbd5e1', boxWidth: 10, font: { size: 10 } }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                let val = Math.round(context.parsed.y);
+                                let time = app.state.stats[context.dataIndex]?.time;
+                                if(context.datasetIndex === 0 && time) return `${label}: ${val} (Lap: ${time}s)`;
+                                return `${label}: ${val}`;
+                            }
+                        }
+                    }
+                } 
+            } 
+        }); 
+    },
+    updateChart: function() { 
+        if(!this.chart) return; 
+        this.chart.data.labels = this.state.stats.map(s => `Gen ${s.gen}`); 
+        this.chart.data.datasets[0].data = this.state.stats.map(s => s.best); 
+        this.chart.data.datasets[1].data = this.state.stats.map(s => s.avg); 
+        this.chart.update(); 
+    }
+};
+
+// --- Mobile/Desktop Track Editor ---
+const editor = {
+    track: null, mode: 'path', dragIndex: null, hoverIndex: null, isDraggingStart: false, isRotatingStart: false, isResizingZone: false, selectedZone: null, selectedDecor: null,
+
+    init: function(t) { 
+        this.track = t; document.getElementById('edit-name').value = t.name; document.getElementById('edit-width').value = t.trackWidth; document.getElementById('edit-angle').value = Math.round((t.startAngle || 0) * (180/Math.PI)); this.setMode('path');
+        const c = document.getElementById('sim-canvas');
+        const evPos = e => { e.preventDefault(); return e.touches ? e.touches[0] : e; };
+        c.onmousedown = c.ontouchstart = e => this.onDown(evPos(e));
+        c.onmousemove = c.ontouchmove = e => this.onMove(evPos(e));
+        c.onmouseup = c.ontouchend = () => { this.dragIndex=null; this.isDraggingStart=false; this.isRotatingStart=false; this.isResizingZone=false; };
+    },
+
+    setMode: function(m) {
+        this.mode = m; this.selectedZone = null; this.selectedDecor = null;
+        ['path','zones','decor'].forEach(x => { document.getElementById('btn-mode-'+x).className = m===x?'px-2 py-1 text-xs rounded flex items-center gap-1 bg-blue-600 text-white':'px-2 py-1 text-xs rounded flex items-center gap-1 text-slate-400'; document.getElementById(x+'-tools').style.display = m===x?'flex':'none'; });
+        document.getElementById('sim-canvas').style.cursor = 'default';
+    },
+
+    save: function() { this.track.name = document.getElementById('edit-name').value; app.saveTrack(generateTrackFromPath(this.track.id, this.track.name, this.track.path, this.track.trackWidth, this.track.startPos, this.track.startAngle, this.track.zones, this.track.difficulty, this.track.decorations)); },
+    cancel: function() { app.state.isEditing = false; document.getElementById('editor-controls').classList.add('hidden'); document.getElementById('engine-status').classList.remove('hidden'); },
+    updateWidth: function(v) { this.track.trackWidth = parseInt(v); }, updateAngle: function(v) { this.track.startAngle = parseFloat(v) * (Math.PI/180); },
+    addZone: function(type) { const z = { id:Date.now().toString(), x:CANVAS_WIDTH/2, y:CANVAS_HEIGHT/2, radius:50, type }; this.track.zones.push(z); this.selectedZone = z; },
+    deleteZone: function() { if(this.selectedZone) this.track.zones = this.track.zones.filter(z => z !== this.selectedZone); this.selectedZone = null; },
+    addDecor: function(type) { if(!this.track.decorations) this.track.decorations = []; const d = { id:Date.now().toString(), x:CANVAS_WIDTH/2, y:CANVAS_HEIGHT/2, type }; this.track.decorations.push(d); this.selectedDecor = d; },
+    deleteDecor: function() { if(this.selectedDecor && this.track.decorations) this.track.decorations = this.track.decorations.filter(d => d !== this.selectedDecor); this.selectedDecor = null; },
+
+    getPos: function(e) { const r = document.getElementById('sim-canvas').getBoundingClientRect(); return { x: (e.clientX-r.left)*(CANVAS_WIDTH/r.width), y: (e.clientY-r.top)*(CANVAS_HEIGHT/r.height) }; },
+
+    onDown: function(e) {
+        const {x,y} = this.getPos(e);
+        if (this.mode === 'decor') { if(this.track.decorations) this.selectedDecor = [...this.track.decorations].reverse().find(d => Math.hypot(d.x-x, d.y-y) < 30) || null; return; }
+        if (this.mode === 'zones') {
+            if(this.selectedZone && Math.hypot(x-(this.selectedZone.x+this.selectedZone.radius), y-this.selectedZone.y) < 15) { this.isResizingZone = true; return; }
+            this.selectedZone = [...this.track.zones].reverse().find(z => Math.hypot(z.x-x, z.y-y) < z.radius) || null; return;
+        }
+        
+        if(Math.hypot(x - this.track.startPos.x, y - this.track.startPos.y) < 30) { this.isDraggingStart = true; return; }
+        const idx = this.track.path.findIndex(p => Math.hypot(p.x-x, p.y-y)<20);
+        if(idx !== -1) { if(e.shiftKey && this.track.path.length>2) this.track.path.splice(idx,1); else this.dragIndex = idx; } 
+        else {
+            let bI = -1, mD = 20;
+            for(let i=0; i<this.track.path.length; i++) {
+                const p1 = this.track.path[i], p2 = this.track.path[(i+1)%this.track.path.length];
+                const l2 = (p1.x-p2.x)**2+(p1.y-p2.y)**2; if(l2===0) continue;
+                const t = Math.max(0, Math.min(1, ((x-p1.x)*(p2.x-p1.x)+(y-p1.y)*(p2.y-p1.y))/l2));
+                const d = Math.hypot(x-(p1.x+t*(p2.x-p1.x)), y-(p1.y+t*(p2.y-p1.y)));
+                if(d<mD) { mD=d; bI=i; }
+            }
+            if(bI !== -1) { this.track.path.splice(bI+1, 0, {x,y}); this.dragIndex = bI+1; }
+        }
+    },
+
+    onMove: function(e) {
+        const {x,y} = this.getPos(e);
+        if(this.mode === 'decor') { if(this.selectedDecor && (e.buttons === 1 || e.type==="touchmove")) { this.selectedDecor.x = x; this.selectedDecor.y = y; } return; }
+        if(this.mode === 'zones') {
+            if(this.selectedZone && (e.buttons === 1 || e.type==="touchmove")) {
+                if(this.isResizingZone) this.selectedZone.radius = Math.max(20, Math.hypot(x - this.selectedZone.x, y - this.selectedZone.y)); 
+                else { this.selectedZone.x = x; this.selectedZone.y = y; }
+            } return;
+        }
+        if(this.isDraggingStart) this.track.startPos = {x,y};
+        else if(this.dragIndex !== null) this.track.path[this.dragIndex] = {x,y}; 
+        else this.hoverIndex = this.track.path.findIndex(p => Math.hypot(p.x-x, p.y-y)<20);
+    },
+
+    draw: function(ctx) {
+        const p = generateTrackFromPath(this.track.id, this.track.name, this.track.path, this.track.trackWidth, this.track.startPos, this.track.startAngle, this.track.zones, this.track.difficulty, this.track.decorations);
+        if (p.leftPoly && p.rightPoly) {
+             ctx.fillStyle = '#343a40';
+             for(let i=0; i<p.leftPoly.length; i++) {
+                 const n = (i+1)%p.leftPoly.length; ctx.beginPath(); ctx.moveTo(p.leftPoly[i].x, p.leftPoly[i].y); ctx.lineTo(p.leftPoly[n].x, p.leftPoly[n].y);
+                 ctx.lineTo(p.rightPoly[n].x, p.rightPoly[n].y); ctx.lineTo(p.rightPoly[i].x, p.rightPoly[i].y); ctx.fill();
+             }
+        }
+        ctx.strokeStyle='#334155'; ctx.lineWidth=4; ctx.beginPath(); p.walls.forEach(w => { ctx.moveTo(w.p1.x, w.p1.y); ctx.lineTo(w.p2.x, w.p2.y); }); ctx.stroke();
+        ctx.strokeStyle='#38bdf8'; ctx.lineWidth=2; ctx.beginPath(); p.checkpoints.forEach(cp => { ctx.moveTo(cp.p1.x, cp.p1.y); ctx.lineTo(cp.p2.x, cp.p2.y); }); ctx.stroke();
+        
+        if(p.decorations) p.decorations.forEach(d => {
+            ctx.save(); ctx.translate(d.x, d.y);
+            if(d === this.selectedDecor) { ctx.beginPath(); ctx.arc(0,0,25,0,Math.PI*2); ctx.fillStyle='rgba(255,255,255,0.2)'; ctx.fill(); ctx.strokeStyle='#fff'; ctx.stroke(); }
+            ctx.font = "24px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(d.type === 'tree'?"🌲":(d.type === 'rock'?"🪨":"💧"), 0, 0); ctx.restore();
+        });
+
+        p.zones.forEach(z => {
+            ctx.beginPath(); ctx.arc(z.x, z.y, z.radius, 0, Math.PI*2);
+            ctx.fillStyle = z.type==='speed'?'rgba(239,68,68,0.2)':(z.type==='precision'?'rgba(59,130,246,0.2)':'rgba(168,85,247,0.2)');
+            ctx.fill(); ctx.lineWidth = z===this.selectedZone?3:1; ctx.strokeStyle = z===this.selectedZone?'#fff':(z.type==='speed'?'#ef4444':z.type==='precision'?'#3b82f6':'#a855f7');
+            if(z===this.selectedZone) ctx.setLineDash([5,5]); ctx.stroke(); ctx.setLineDash([]);
+            if (z===this.selectedZone) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(z.x+z.radius, z.y, 6, 0, Math.PI*2); ctx.fill(); ctx.strokeStyle='#000'; ctx.lineWidth=1; ctx.stroke(); }
+        });
+
+        if(this.mode === 'path') {
+            ctx.strokeStyle='#3b82f6'; ctx.lineWidth=2; ctx.setLineDash([5,5]); ctx.beginPath();
+            if(this.track.path.length>0) { ctx.moveTo(this.track.path[0].x, this.track.path[0].y); for(let i=1; i<this.track.path.length; i++) ctx.lineTo(this.track.path[i].x, this.track.path[i].y); if(this.track.path.length>2) ctx.lineTo(this.track.path[0].x, this.track.path[0].y); }
+            ctx.stroke(); ctx.setLineDash([]);
+            this.track.path.forEach((p, i) => { ctx.fillStyle = i===0?'#22c55e':(i===this.hoverIndex?'#fbbf24':'#60a5fa'); ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI*2); ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke(); });
+
+            ctx.save(); ctx.translate(p.startPos.x, p.startPos.y); ctx.rotate(p.startAngle); ctx.fillStyle='rgba(34,197,94,0.5)'; ctx.fillRect(-10,-5,20,10); ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(-5, 0); ctx.lineTo(5, 0); ctx.lineTo(2, -3); ctx.moveTo(5, 0); ctx.lineTo(2, 3); ctx.stroke(); ctx.restore();
+            ctx.fillStyle = this.isDraggingStart ? '#fff' : '#22c55e'; ctx.beginPath(); ctx.arc(p.startPos.x, p.startPos.y, 10, 0, Math.PI*2); ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth=2; ctx.stroke();
+        }
+    }
+};
+
+window.onload = () => app.init();
 </script>
+<script type="module" src="/index.tsx"></script>
+</body>
 </html>
