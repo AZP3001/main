@@ -38,7 +38,6 @@
         </button>
     </div>
 
-    <!-- Sidebar -->
     <div id="sidebar" class="w-full lg:w-80 bg-slate-800 p-4 flex flex-col border-r border-slate-700 overflow-y-auto shrink-0 custom-scrollbar shadow-xl">
         <div class="flex justify-between items-center mb-4 hidden lg:flex">
             <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
@@ -183,11 +182,11 @@
                     <input type="range" min="20" max="1000" step="10" value="200" oninput="app.updateConfig('populationSize', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
                 </div>
                 <div onmouseenter="app.showInfo('eliteClones')" onmouseleave="app.showInfo(null)">
-                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Elite Clones</span><span id="val-elite">1</span></label>
+                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Elite Clones</span><span id="val-elite">7</span></label>
                     <input type="range" min="0" max="50" step="1" value="5" oninput="app.updateConfig('eliteClones', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
                 </div>
                  <div onmouseenter="app.showInfo('mutationRate')" onmouseleave="app.showInfo(null)">
-                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Mutation Rate</span><span id="val-mut">40%</span></label>
+                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Mutation Rate</span><span id="val-mut">30%</span></label>
                     <input type="range" min="0.01" max="1.0" step="0.01" value="0.25" oninput="app.updateConfig('mutationRate', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
                 </div>
                  <div onmouseenter="app.showInfo('hiddenLayers')" onmouseleave="app.showInfo(null)">
@@ -205,19 +204,19 @@
 
                 <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-wide border-b border-slate-600 pb-1 mt-2">Physics</h4>
                 <div onmouseenter="app.showInfo('maxSpeed')" onmouseleave="app.showInfo(null)">
-                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Max Speed</span><span id="val-maxSpeed">14</span></label>
+                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Max Speed</span><span id="val-maxSpeed">10</span></label>
                     <input type="range" min="8" max="25" value="14" oninput="app.updatePhysics('maxSpeed', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
                 </div>
                 <div onmouseenter="app.showInfo('acceleration')" onmouseleave="app.showInfo(null)">
-                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Acceleration</span><span id="val-accel">0.15</span></label>
+                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Acceleration</span><span id="val-accel">0.10</span></label>
                     <input type="range" min="0.05" max="1.0" step="0.05" value="0.15" oninput="app.updatePhysics('acceleration', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
                 </div>
                 <div onmouseenter="app.showInfo('turnSpeed')" onmouseleave="app.showInfo(null)">
-                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Turn Speed</span><span id="val-turn">0.05</span></label>
+                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Turn Speed</span><span id="val-turn">0.08</span></label>
                     <input type="range" min="0.02" max="0.2" step="0.01" value="0.05" oninput="app.updatePhysics('turnSpeed', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
                 </div>
                 <div onmouseenter="app.showInfo('grip')" onmouseleave="app.showInfo(null)">
-                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Grip (Friction)</span><span id="val-grip">96%</span></label>
+                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Grip (Friction)</span><span id="val-grip">93%</span></label>
                     <input type="range" min="0.8" max="0.99" step="0.01" value="0.96" oninput="app.updatePhysics('grip', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
                 </div>
 
@@ -228,10 +227,8 @@
         </div>
     </div>
 
-    <!-- Main Content -->
     <div class="flex-1 p-2 md:p-4 flex flex-col gap-4 overflow-hidden relative" onclick="document.getElementById('sidebar').classList.remove('open')">
         
-        <!-- Editor Controls (Overlay) -->
         <div id="editor-controls" class="hidden absolute top-6 left-6 right-6 z-50 bg-slate-800 p-3 rounded-lg border border-slate-700 shadow-2xl flex justify-between items-center flex-wrap gap-2">
             <div class="flex items-center gap-4 flex-wrap">
                 <input id="edit-name" type="text" class="bg-slate-700 border border-slate-600 rounded px-3 py-1 text-sm md:text-lg font-bold text-white w-32 md:w-48" placeholder="Track Name">
@@ -296,8 +293,7 @@
     </div>
 
 <script>
-/** 
- * TrackML - v9.0 ArrayBuffer Edition (Ultimate Zero-Copy CPU Optimization)
+/** * TrackML - v9.0 ArrayBuffer Edition (Ultimate Zero-Copy CPU Optimization)
  */
 
 const CANVAS_WIDTH = 1200; //x
@@ -307,7 +303,6 @@ const CAR_HEIGHT = 7;
 const SENSOR_LENGTH = 180;
 const SENSOR_ANGLES = [-Math.PI/2, -Math.PI/3, -Math.PI/6, 0, Math.PI/6, Math.PI/3, Math.PI/2];
 const SENSOR_COUNT = SENSOR_ANGLES.length;
-const STORAGE_KEY_TRACKS = 'trackml_tracks_v9.0';
 
 const SETTING_DESCRIPTIONS = {
     engineToggle: "CPU uses a Zero-Copy Transferable Buffer utilizing 100% of physical cores simultaneously. GPU uses WebGL pipelining.",
@@ -320,12 +315,6 @@ const SETTING_DESCRIPTIONS = {
     targetLaps: "Laps needed to trigger the next generation automatically.",
     maxSpeed: "Top speed. Higher speeds require faster AI reaction times.",
     acceleration: "Engine power.", turnSpeed: "Steering sensitivity.", grip: "Lateral Friction. 96% is balanced."
-};
-
-const Storage = {
-    saveTracks: (t) => localStorage.setItem(STORAGE_KEY_TRACKS, JSON.stringify(t)),
-    getTracks: () => { const t = localStorage.getItem(STORAGE_KEY_TRACKS); return t ? JSON.parse(t) : null; },
-    clearTracks: () => localStorage.removeItem(STORAGE_KEY_TRACKS),
 };
 
 function lerp(a, b, t) { return a + (b - a) * t; }
@@ -775,7 +764,7 @@ function updateCarGPU(car, walls, checkpoints, zones, config) {
 const app = {
     state: {
         populationSize: 200, eliteClones: 1, targetLaps: 3, mutationRate: 0.40, hiddenLayers: 5, initialTTL: 300,
-        physics: { maxSpeed: 14, acceleration: 0.15, turnSpeed: 0.05, grip: 0.96 },
+        physics: { maxSpeed: 10, acceleration: 0.05, turnSpeed: 0.08, grip: 0.93 },
         tracks: [], currentTrackIndex: 1, cars: [], generation: 1, isRunning: false, speedMultiplier: 1, hyperMode: false,
         stats: [], globalBest: null, bestTimes: { gen: null, all: null }, isEditing: false, trackToEdit: null,
         bgCanvas: null
@@ -784,43 +773,39 @@ const app = {
     init: function() {
         try {
             Engine.init();
-            const sT = Storage.getTracks();
-            if (sT && sT.length > 0) {
-                this.state.tracks = sT; 
-                this.renderTrackList();
-                this.switchTrack(0); // Ensures correct mapping & cache initialization
-            } else { 
-                this.resetTracks(true); 
-            }
+            this.resetTracks(); 
             this.initChart();
             if(window.lucide) lucide.createIcons();
             this.loop();
-        } catch (e) { console.error("Init Error:", e); Storage.clearTracks(); location.reload(); }
+        } catch (e) { console.error("Init Error:", e); location.reload(); }
     },
 
     setEngine: function(mode) { Engine.setMode(mode); },
 
-    resetTracks: function(reload = true) {
+    resetTracks: function() {
         const cx = CANVAS_WIDTH/2, cy = CANVAS_HEIGHT/2;
         const poly = (s, r) => Array.from({length:s},(_,i)=>{const a=(Math.PI*2 * i)/s;return{x:cx+Math.cos(a)*r,y:cy+Math.sin(a)*r}});
 
-        this.state.tracks = [ //1200 x 900
-            generateTrackFromPath("t1", "The Oval", poly(30, 350), 60),
-            generateTrackFromPath("t2", "Triangle", poly(3, 300), 70), // True 3 points
-            generateTrackFromPath("t3", "Square", [{x:60,y:60}, {x:1140,y:60}, {x:1140,y:840}, {x:60,y:840}], 60),
-            generateTrackFromPath("t4", "Hexagon", poly(6, 350), 60), // True 6 points
-            generateTrackFromPath("t5", "Complex City", [{x:100,y:800},{x:100,y:100},{x:400,y:100},{x:400,y:400},{x:800,y:400},{x:800,y:100},{x:1100,y:100},{x:1100,y:800},{x:800,y:800},{x:800,y:600},{x:400,y:600},{x:400,y:800}], 50),
-            //generateTrackFromPath("t6", "The Snake", [{x:100,y:100},{x:1100,y:100},{x:1100,y:300},{x:100,y:300},{x:100,y:500},{x:1100,y:500},{x:1100,y:700},{x:100,y:700},{x:100,y:850},{x:1150,y:850},{x:1150,y:50}], 45),
-            //generateTrackFromPath("t7", "The Crossover", [{x:100,y:450}, {x:400,y:150}, {x:800,y:150}, {x:1100,y:450}, {x:800,y:750}, {x:400,y:750}, {x:200,y:550}, {x:1000,y:350}], 40),
-            generateTrackFromPath("t6", "Monza-ish", [{x:200,y:700},{x:500,y:650},{x:800,y:700},{x:1000,y:600},{x:1000,y:200},{x:800,y:100},{x:300,y:100},{x:200,y:300},{x:300,y:400},{x:200,y:500}], 50),
-            //generateTrackFromPath("t9", "Double 8", [{x:150,y:450}, {x:600,y:150}, {x:1050,y:450}, {x:600,y:750}, {x:150,y:450}, {x:1050,y:150}, {x:600,y:450}, {x:150,y:750}, {x:1050,y:450}], 40),
-            generateTrackFromPath("t7", "High Speed Ring", [{x:150,y:450}, {x:300,y:150}, {x:900,y:150}, {x:1050,y:450}, {x:900,y:750}, {x:300,y:750}], 60),
-            //generateTrackFromPath("t11", "The Spiral", [{x:100,y:100}, {x:1100,y:100}, {x:1100,y:800}, {x:100,y:800}, {x:100,y:250}, {x:900,y:250}, {x:900,y:650}, {x:250,y:650}, {x:250,y:400}, {x:700,y:400}, {x:700,y:500}, {x:400,y:500}], 35),
-            generateTrackFromPath("t8", "Monaco", [{x:100,y:800}, {x:1100,y:800}, {x:1100,y:100}, {x:600,y:100}, {x:600,y:400}, {x:200,y:400}, {x:200,y:200}, {x:100,y:200}], 35),
-            generateTrackFromPath("t9", "Infinity Loop", [{x:200,y:450},{x:200,y:200},{x:500,y:200},{x:700,y:700},{x:1000,y:700},{x:1000,y:450},{x:1000,y:200},{x:700,y:200},{x:500,y:700},{x:200,y:700}], 40)
-        ];
-        Storage.saveTracks(this.state.tracks);
-        if(reload) { this.switchTrack(0); } else { this.renderTrackList(); }
+        this.state.tracks = [ // 1200 x 900
+    generateTrackFromPath("t1", "The Oval", poly(30, 350), 60),
+    generateTrackFromPath("t2", "Triangle", poly(3, 300), 70),
+    generateTrackFromPath("t3", "Square", [{x:60,y:60}, {x:1140,y:60}, {x:1140,y:840}, {x:60,y:840}], 60),
+    generateTrackFromPath("t4", "Hexagon", poly(6, 350), 60),
+    generateTrackFromPath("t5", "Complex City", [{x:100,y:800},{x:100,y:100},{x:400,y:100},{x:400,y:400},{x:800,y:400},{x:800,y:100},{x:1100,y:100},{x:1100,y:800},{x:800,y:800},{x:800,y:600},{x:400,y:600},{x:400,y:800}], 50),
+    generateTrackFromPath("t6", "Monza-ish", [{x:200,y:700},{x:500,y:650},{x:800,y:700},{x:1000,y:600},{x:1000,y:200},{x:800,y:100},{x:300,y:100},{x:200,y:300},{x:300,y:400},{x:200,y:500}], 50),
+    generateTrackFromPath("t7", "High Speed Ring", [{x:150,y:450}, {x:300,y:150}, {x:900,y:150}, {x:1050,y:450}, {x:900,y:750}, {x:300,y:750}], 60),
+    generateTrackFromPath("t8", "Monaco", [{x:100,y:800}, {x:1100,y:800}, {x:1100,y:100}, {x:600,y:100}, {x:600,y:400}, {x:200,y:400}, {x:200,y:200}, {x:100,y:200}], 35),
+    generateTrackFromPath("t9", "Infinity Loop", [{x:200,y:450},{x:200,y:200},{x:500,y:200},{x:700,y:700},{x:1000,y:700},{x:1000,y:450},{x:1000,y:200},{x:700,y:200},{x:500,y:700},{x:200,y:700}], 40),
+    generateTrackFromPath("t10", "The Paperclip", [{x:100,y:100}, {x:1100,y:100}, {x:1100,y:300}, {x:300,y:300}, {x:300,y:600}, {x:1100,y:600}, {x:1100,y:800}, {x:100,y:800}], 45),
+    generateTrackFromPath("t11", "Desert Serpent", [{x:100,y:450}, {x:300,y:150}, {x:500,y:450}, {x:700,y:650}, {x:900,y:450}, {x:1100,y:150}, {x:1100,y:750}, {x:100,y:750}], 50),
+    generateTrackFromPath("t12", "The Big M", [{x:100,y:800}, {x:100,y:100}, {x:600,y:500}, {x:1100,y:100}, {x:1100,y:800}, {x:900,y:800}, {x:900,y:400}, {x:600,y:700}, {x:300,y:400}, {x:300,y:800}], 55),
+    generateTrackFromPath("t13", "Pentagon", poly(5, 350), 65),
+    generateTrackFromPath("t14", "Octagon", poly(8, 380), 55),
+    generateTrackFromPath("t15", "The Twister", [{x:600,y:100}, {x:1000,y:200}, {x:900,y:500}, {x:1100,y:800}, {x:600,y:700}, {x:100,y:800}, {x:300,y:500}, {x:200,y:200}], 30)
+];
+        
+        this.renderTrackList();
+        this.switchTrack(0);
     },
 
     get currentTrack() { return this.state.tracks[this.state.currentTrackIndex]; },
@@ -1083,11 +1068,11 @@ const app = {
         document.getElementById('engine-status').classList.add('hidden');
     },
     saveTrack: function(t) { 
-        const idx = this.state.tracks.findIndex(tr => tr.id === t.id); if(idx !== -1) this.state.tracks[idx] = t; else { this.state.tracks.push(t); this.state.currentTrackIndex = this.state.tracks.length-1; } Storage.saveTracks(this.state.tracks); 
+        const idx = this.state.tracks.findIndex(tr => tr.id === t.id); if(idx !== -1) this.state.tracks[idx] = t; else { this.state.tracks.push(t); this.state.currentTrackIndex = this.state.tracks.length-1; } 
         this.state.isEditing = false; document.getElementById('editor-controls').classList.add('hidden'); document.getElementById('engine-status').classList.remove('hidden');
         this.switchTrack(this.state.currentTrackIndex); this.renderTrackList(); 
     },
-    deleteTrack: function() { if(confirm("Delete this track?")) { if(this.state.tracks.length > 1) { this.state.tracks.splice(this.state.currentTrackIndex, 1); Storage.saveTracks(this.state.tracks); this.switchTrack(0); this.renderTrackList(); } else alert("Cannot delete last track."); } },
+    deleteTrack: function() { if(confirm("Delete this track?")) { if(this.state.tracks.length > 1) { this.state.tracks.splice(this.state.currentTrackIndex, 1); this.switchTrack(0); this.renderTrackList(); } else alert("Cannot delete last track."); } },
 
     chart: null,
     initChart: function() { 
@@ -1148,10 +1133,10 @@ const editor = {
     init: function(t) { 
         this.track = t; document.getElementById('edit-name').value = t.name; document.getElementById('edit-width').value = t.trackWidth; document.getElementById('edit-angle').value = Math.round((t.startAngle || 0) * (180/Math.PI)); this.setMode('path');
         const c = document.getElementById('sim-canvas');
-        const evPos = e => { e.preventDefault(); return e.touches ? e.touches[0] : e; };
-        c.onmousedown = c.ontouchstart = e => this.onDown(evPos(e));
-        c.onmousemove = c.ontouchmove = e => this.onMove(evPos(e));
-        c.onmouseup = c.ontouchend = () => { this.dragIndex=null; this.isDraggingStart=false; this.isRotatingStart=false; this.isResizingZone=false; };
+        c.style.touchAction = 'none';
+        c.onpointerdown = e => { e.preventDefault(); c.setPointerCapture(e.pointerId); this.onDown(e); };
+        c.onpointermove = e => { e.preventDefault(); this.onMove(e); };
+        c.onpointerup = c.onpointercancel = e => { c.releasePointerCapture(e.pointerId); this.dragIndex=null; this.isDraggingStart=false; this.isRotatingStart=false; this.isResizingZone=false; };
     },
 
     setMode: function(m) {
