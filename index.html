@@ -173,7 +173,7 @@
 
                 <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-wide border-b border-slate-600 pb-1 mt-2">Simulation</h4>
                 <div onmouseenter="app.showInfo('speedMultiplier')" onmouseleave="app.showInfo(null)">
-                     <label class="text-[10px] text-slate-500 flex justify-between"><span>Speed</span><span id="val-speed">3x</span></label>
+                     <label class="text-[10px] text-slate-500 flex justify-between"><span>Speed</span><span id="val-speed">1x</span></label>
                      <input type="range" min="1" max="50" step="1" value="3" oninput="app.updateConfig('speedMultiplier', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
                 </div>
 
@@ -183,23 +183,23 @@
                     <input type="range" min="20" max="1000" step="10" value="200" oninput="app.updateConfig('populationSize', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
                 </div>
                 <div onmouseenter="app.showInfo('eliteClones')" onmouseleave="app.showInfo(null)">
-                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Elite Clones</span><span id="val-elite">5</span></label>
+                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Elite Clones</span><span id="val-elite">1</span></label>
                     <input type="range" min="0" max="50" step="1" value="5" oninput="app.updateConfig('eliteClones', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
                 </div>
                  <div onmouseenter="app.showInfo('mutationRate')" onmouseleave="app.showInfo(null)">
-                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Mutation Rate</span><span id="val-mut">25%</span></label>
+                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Mutation Rate</span><span id="val-mut">40%</span></label>
                     <input type="range" min="0.01" max="1.0" step="0.01" value="0.25" oninput="app.updateConfig('mutationRate', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
                 </div>
                  <div onmouseenter="app.showInfo('hiddenLayers')" onmouseleave="app.showInfo(null)">
-                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Hidden Layers</span><span id="val-hidden">6</span></label>
+                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Hidden Layers</span><span id="val-hidden">5</span></label>
                     <input type="range" min="2" max="50" step="1" value="6" onchange="app.reset()" oninput="app.updateConfig('hiddenLayers', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
                 </div>
                  <div onmouseenter="app.showInfo('initialTTL')" onmouseleave="app.showInfo(null)">
-                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Initial TTL</span><span id="val-ttl">200</span></label>
+                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Initial TTL</span><span id="val-ttl">300</span></label>
                     <input type="range" min="50" max="1000" step="50" value="200" oninput="app.updateConfig('initialTTL', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
                 </div>
                 <div onmouseenter="app.showInfo('targetLaps')" onmouseleave="app.showInfo(null)">
-                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Target Laps</span><span id="val-laps">2</span></label>
+                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Target Laps</span><span id="val-laps">3</span></label>
                     <input type="range" min="1" max="50" step="1" value="2" oninput="app.updateConfig('targetLaps', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
                 </div>
 
@@ -300,8 +300,8 @@
  * TrackML - v9.0 ArrayBuffer Edition (Ultimate Zero-Copy CPU Optimization)
  */
 
-const CANVAS_WIDTH = 1200;
-const CANVAS_HEIGHT = 900;
+const CANVAS_WIDTH = 1200; //x
+const CANVAS_HEIGHT = 900; //y
 const CAR_WIDTH = 14;
 const CAR_HEIGHT = 7;
 const SENSOR_LENGTH = 180;
@@ -774,9 +774,9 @@ function updateCarGPU(car, walls, checkpoints, zones, config) {
 // --- Main Application ---
 const app = {
     state: {
-        populationSize: 100, eliteClones: 1, targetLaps: 2, mutationRate: 0.50, hiddenLayers: 6, initialTTL: 200,
+        populationSize: 200, eliteClones: 1, targetLaps: 3, mutationRate: 0.40, hiddenLayers: 5, initialTTL: 300,
         physics: { maxSpeed: 14, acceleration: 0.15, turnSpeed: 0.05, grip: 0.96 },
-        tracks: [], currentTrackIndex: 1, cars: [], generation: 1, isRunning: false, speedMultiplier: 2, hyperMode: false,
+        tracks: [], currentTrackIndex: 1, cars: [], generation: 1, isRunning: false, speedMultiplier: 1, hyperMode: false,
         stats: [], globalBest: null, bestTimes: { gen: null, all: null }, isEditing: false, trackToEdit: null,
         bgCanvas: null
     },
@@ -804,10 +804,10 @@ const app = {
         const cx = CANVAS_WIDTH/2, cy = CANVAS_HEIGHT/2;
         const poly = (s, r) => Array.from({length:s},(_,i)=>{const a=(Math.PI*2 * i)/s;return{x:cx+Math.cos(a)*r,y:cy+Math.sin(a)*r}});
 
-        this.state.tracks = [
+        this.state.tracks = [ //1200 x 900
             generateTrackFromPath("t1", "The Oval", poly(30, 350), 60),
             generateTrackFromPath("t2", "Triangle", poly(3, 300), 70), // True 3 points
-            generateTrackFromPath("t3", "Square", [{x:0,y:0}, {x:100,y:500}], 60), // True 4 points
+            generateTrackFromPath("t3", "Square", [{x:60,y:60}, {x:1140,y:60}, {x:1140,y:840}, {x:60,y:840}], 60),
             generateTrackFromPath("t4", "Hexagon", poly(6, 350), 60), // True 6 points
             generateTrackFromPath("t5", "Complex City", [{x:100,y:800},{x:100,y:100},{x:400,y:100},{x:400,y:400},{x:800,y:400},{x:800,y:100},{x:1100,y:100},{x:1100,y:800},{x:800,y:800},{x:800,y:600},{x:400,y:600},{x:400,y:800}], 50),
             //generateTrackFromPath("t6", "The Snake", [{x:100,y:100},{x:1100,y:100},{x:1100,y:300},{x:100,y:300},{x:100,y:500},{x:1100,y:500},{x:1100,y:700},{x:100,y:700},{x:100,y:850},{x:1150,y:850},{x:1150,y:50}], 45),
