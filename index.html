@@ -179,19 +179,19 @@
                 <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-wide border-b border-slate-600 pb-1 mt-2">Evolution & Brain</h4>
                 <div onmouseenter="app.showInfo('populationSize')" onmouseleave="app.showInfo(null)">
                     <label class="text-[10px] text-slate-500 flex justify-between"><span>Pop Size</span><span id="val-pop">200</span></label>
-                    <input type="range" min="20" max="1000" step="10" value="200" oninput="app.updateConfig('populationSize', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
+                    <input type="range" min="20" max="500" step="20" value="200" oninput="app.updateConfig('populationSize', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
                 </div>
                 <div onmouseenter="app.showInfo('eliteClones')" onmouseleave="app.showInfo(null)">
-                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Elite Clones</span><span id="val-elite">15</span></label>
-                    <input type="range" min="0" max="50" step="1" value="15" oninput="app.updateConfig('eliteClones', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
+                    <label class="text-[10px] text-slate-500 flex justify-between"><span>Elite Clones</span><span id="val-elite">14</span></label>
+                    <input type="range" min="0" max="50" step="2" value="14" oninput="app.updateConfig('eliteClones', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
                 </div>
                  <div onmouseenter="app.showInfo('mutationRate')" onmouseleave="app.showInfo(null)">
                     <label class="text-[10px] text-slate-500 flex justify-between"><span>Mutation Rate</span><span id="val-mut">50%</span></label>
-                    <input type="range" min="0.01" max="1.0" step="0.01" value="0.50" oninput="app.updateConfig('mutationRate', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
+                    <input type="range" min="0.00" max="1.0" step="0.05" value="0.50" oninput="app.updateConfig('mutationRate', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
                 </div>
                  <div onmouseenter="app.showInfo('hiddenLayers')" onmouseleave="app.showInfo(null)">
                     <label class="text-[10px] text-slate-500 flex justify-between"><span>Hidden Layers</span><span id="val-hidden">5</span></label>
-                    <input type="range" min="2" max="50" step="1" value="5" onchange="app.reset()" oninput="app.updateConfig('hiddenLayers', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
+                    <input type="range" min="1" max="25" step="1" value="5" onchange="app.reset()" oninput="app.updateConfig('hiddenLayers', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
                 </div>
                  <div onmouseenter="app.showInfo('initialTTL')" onmouseleave="app.showInfo(null)">
                     <label class="text-[10px] text-slate-500 flex justify-between"><span>Initial TTL</span><span id="val-ttl">400</span></label>
@@ -763,7 +763,7 @@ function updateCarGPU(car, walls, checkpoints, zones, config) {
 // --- Main Application ---
 const app = {
     state: {
-        populationSize: 200, eliteClones: 15, targetLaps: 3, mutationRate: 0.50, hiddenLayers: 5, initialTTL: 400,
+        populationSize: 200, eliteClones: 14, targetLaps: 3, mutationRate: 0.50, hiddenLayers: 5, initialTTL: 400,
         physics: { maxSpeed: 10, acceleration: 0.05, turnSpeed: 0.04, grip: 0.93 },
         tracks: [], currentTrackIndex: 1, cars: [], generation: 1, isRunning: false, speedMultiplier: 1, hyperMode: false,
         stats: [], globalBest: null, bestTimes: { gen: null, all: null }, isEditing: false, trackToEdit: null,
