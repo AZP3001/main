@@ -1,14 +1,14 @@
 # AI RaceTrack Evolution    
 [*To Simulation*](https://azp3001.github.io/main/)
 
-A sophisticated 2D simulation where autonomous agents (AIs) learn to navigate a complex racetrack through evolutionary algorithms. Starting with zero knowledge, these agents evolve over generations to master speed, precision, and lap efficiency.
+A 2D Race-Track simulation where AIs learn to navigate a racetrack through evolution algorithms.
 
 ## Overview
 
-The simulation drops a population of cars onto a track. Each car is controlled by a neural network that processes environmental data to produce continuous control outputs. Through a process of natural selection, only the best performers pass their "genes" (weights) to the next generation.
+The simulation puts a population of cars onto a track. Each car is controlled by a neural network wich processes "lidar" data to produce continuous control outputs. Only the best performers pass their "genes" (weights) to the next generation.
 
 ### The Learning Process
-The AI agents have four primary control axes. Unlike simple binary inputs, these are **analog (0-100%)**, allowing for nuanced driving:
+The AIs have four primary control axes. To allow for more precise controls the axes are **analog (0-100%)**, allowing for more precise & smooth driving:
 * **Gas:**
 * **Brake:**
 * **Steer Left:**
@@ -18,7 +18,7 @@ The AI agents have four primary control axes. Unlike simple binary inputs, these
 
 ## Configuration & Settings
 
-Fine-tune the simulation and the evolutionary process using the built-in control panel.
+Fine-tune the simulation and the learning process using the built-in settings.
 
 ### AI & Evolutionary Parameters
 * **Pop Size:** The number of agents generated per generation.
@@ -29,35 +29,14 @@ Fine-tune the simulation and the evolutionary process using the built-in control
 * **Target Laps:** Defines the goalpost for a successful generation before moving to the next stage of evolution.
 
 ### Physics Engine
-* **Max Speed:** The velocity ceiling for all vehicles.
-* **Acceleration:** Dictates how quickly cars reach their top speed.
-* **Turn Speed:** Controls the rotational agility of the vehicles.
-* **Grip:** Manages friction and handling stability to ensure realistic cornering.
+* **Max Speed:** Maximum Speed of the Cars.
+* **Acceleration:** Acceleration to the Max Speed.
+* **Turn Speed:** Controls how quickly the cars are able to turn.
+* **Grip:** Doesnt do much, introduced as a fix for turning Physics.
 
 ### Simulation Control
-* **Simulation Speed:** Adjust the playback speed to observe behaviors in detail.
-* **Hyper Mode:** Skip rendering or maximize processing to evolve generations at lightning speed.
-
----
-
-## Getting Started
-
-1.  **Visit the Live Page:** [Launch Simulation](https://azp3001.github.io/main/)
-2.  **Observe:** Watch the first generation (Gen 0) struggle and fail.
-3.  **Optimize:** Increase the **Mutation Rate** if they are stuck, or increase **Pop Size** to find a "genius" driver faster.
-4.  **Evolve:** Sit back and watch the AI optimize its racing line over time.
-
----
-
-## Tech Stack
-* **Language:** JavaScript / HTML5 Canvas
-* **Logic:** Genetic Algorithms & Neural Networks
-* **Deployment:** GitHub Pages
-
----
-
-## Contributing
-Contributions are welcome! If you have ideas for better fitness functions, new track layouts, or advanced physics (like drifting or collisions), feel free to fork the repo and submit a PR.
+* **Simulation Speed:** Adjust the simulation speed.
+* **Hyper Mode:** Simulates as fast as your PC allows. (Doesn't render for even faster Processing)
 
 ---
 *Developed by [AZP3001](https://github.com/AZP3001)*
