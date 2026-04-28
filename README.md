@@ -4,20 +4,18 @@
 A 2D Race-Track simulation where AIs learn to navigate a racetrack through evolution algorithms.
 
 ## Overview
-
 The simulation puts a population of cars onto a track. Each car is controlled by a neural network wich processes "lidar" data to produce continuous control outputs. Only the best performers pass their "genes" (weights) to the next generation.
 
 ### The Learning Process
 The AIs have four primary control axes. To allow for more precise controls the axes are **analog (0-100%)**, allowing for more precise & smooth driving:
-* **Gas:**
-* **Brake:**
-* **Steer Left:**
-* **Steer Right:**
+* **Gas**
+* **Brake**
+* **Steer Left**
+* **Steer Right**
 
 ---
 
 ## Configuration & Settings
-
 Fine-tune the simulation and the learning process using the built-in settings.
 
 ### AI & Evolutionary Parameters
