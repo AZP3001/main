@@ -7,7 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/gpu.js@latest/dist/gpu-browser.min.js"></script>
     <style>
         body { background-color: #0f172a; color: white; overflow: hidden; margin: 0; font-family: sans-serif; touch-action: none; }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
@@ -22,26 +21,39 @@
         .bar-steer-r { background: #60a5fa; position: absolute; left: 50%; height: 100%; }
 
         #sidebar { transition: transform 0.3s ease-in-out; z-index: 50; }
+        #sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 49; backdrop-filter: blur(2px); }
+        #sidebar-overlay.show { display: block; }
         @media (max-width: 1024px) {
-            #sidebar { position: absolute; height: 100%; transform: translateX(-100%); }
-            #sidebar.open { transform: translateX(0); }
+            #sidebar { position: fixed; top: 0; left: 0; height: 100%; height: 100dvh; width: min(85vw, 340px); transform: translateX(-105%); overflow-y: auto; }
+            #sidebar.open { transform: translateX(0); box-shadow: 4px 0 30px rgba(0,0,0,0.5); }
+        }
+        @media (max-width: 640px) {
+            #sidebar { width: 100vw; }
         }
     </style>
-    <link rel="stylesheet" href="/index.css">
-</head>
-<body class="flex flex-col lg:flex-row h-screen w-screen relative">
 
-    <div class="lg:hidden bg-slate-800 p-3 flex justify-between items-center border-b border-slate-700 z-40 relative">
+</head>
+<body class="flex flex-col lg:flex-row h-screen w-screen relative" style="height:100dvh">
+
+    <div id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+    <div class="lg:hidden bg-slate-800 px-4 py-3 flex justify-between items-center border-b border-slate-700 z-40 relative shrink-0">
         <h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">TrackML</h1>
-        <button onclick="document.getElementById('sidebar').classList.toggle('open')" class="text-slate-300 hover:text-white">
-            <i data-lucide="menu" class="w-6 h-6"></i>
+        <button onclick="openSidebar()" class="text-slate-300 hover:text-white bg-slate-700 rounded-lg px-3 py-2 flex items-center gap-2 text-sm font-bold">
+            <i data-lucide="settings" class="w-4 h-4"></i> Settings
         </button>
     </div>
 
     <div id="sidebar" class="w-full lg:w-80 bg-slate-800 p-4 flex flex-col border-r border-slate-700 overflow-y-auto shrink-0 custom-scrollbar shadow-xl">
-        <div class="flex justify-between items-center mb-4 hidden lg:flex">
+        <div class="lg:hidden flex justify-between items-center mb-4 pb-3 border-b border-slate-700">
+            <h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">TrackML</h1>
+            <button id="sidebar-close-btn" onclick="closeSidebar()" class="text-slate-400 hover:text-white bg-slate-700 rounded-lg p-2 flex items-center gap-1 text-sm font-bold">
+                <i data-lucide="x" class="w-4 h-4"></i> Close
+            </button>
+        </div>
+        <div class="hidden lg:flex justify-between items-center mb-4">
             <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
-                TrackML <span class="text-xs text-slate-500 font-normal block">v9.9 Settings Fix</span> <!-- VERSION -->
+                TrackML <span class="text-xs text-slate-500 font-normal block">v12.5 | Crisp Edges</span>
             </h1>
         </div>
 
@@ -50,25 +62,25 @@
                 <h3 class="text-xs font-bold text-slate-400 flex items-center gap-2 uppercase tracking-wide">
                     <i data-lucide="map" class="w-3 h-3"></i> Track Selection
                 </h3>
-     <!--comment           <div class="flex gap-1">
+                <div class="flex gap-1">
                     <button onclick="app.resetTracks()" class="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded hover:bg-slate-600" title="Restore Defaults">
                          <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
                     </button>
                     <button onclick="app.createNewTrack()" class="text-xs bg-emerald-600/20 text-emerald-400 px-2 py-1 rounded hover:bg-emerald-600/30 flex items-center gap-1">
                         <i data-lucide="plus" class="w-3 h-3"></i> New
                     </button>
-                </div>         comment-->
+                </div>
             </div>
             <select id="track-dropdown" onchange="app.switchTrack(this.value)" class="w-full bg-slate-700 text-white text-xs p-2 rounded border border-slate-600 focus:outline-none focus:border-emerald-500 mb-2">
             </select>
-     <!--comment       <div class="flex gap-2">
+            <div class="flex gap-2">
                 <button onclick="app.editTrack()" class="flex-1 py-1.5 text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded hover:bg-blue-500/20 flex items-center justify-center gap-1">
                     <i data-lucide="edit-2" class="w-3 h-3"></i> Edit
                 </button>
                 <button onclick="app.deleteTrack()" class="flex-1 py-1.5 text-xs bg-red-500/10 text-red-400 border border-red-500/20 rounded hover:bg-red-500/20 flex items-center justify-center gap-1">
                     <i data-lucide="trash-2" class="w-3 h-3"></i> Del
                 </button>
-            </div>         comment-->
+            </div>
         </div>
 
         <div class="mb-4 bg-slate-700/30 p-3 rounded-lg border border-slate-600">
@@ -128,14 +140,6 @@
 
         <div class="space-y-2 mb-4">
             <div class="flex gap-2">
-                <button id="btn-play" onclick="app.toggleRun()" class="flex-1 py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition-all bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 hover:bg-emerald-500/30">
-                    <i data-lucide="play" class="w-4 h-4"></i> <span>Start</span>
-                </button>
-                <button id="btn-hyper" onclick="app.toggleHyper()" class="w-12 py-2 rounded-lg font-bold flex items-center justify-center transition-all border bg-slate-700 text-slate-400 border-slate-600 hover:text-yellow-400" title="Hyper Mode (No Render)">
-                    <i data-lucide="zap" class="w-4 h-4"></i>
-                </button>
-            </div>
-            <div class="flex gap-2">
                 <button onclick="app.evolve()" class="flex-1 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 rounded text-xs">Skip Gen</button>
                 <button onclick="app.reset()" class="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs">Reset</button>
             </div>
@@ -159,15 +163,9 @@
                 
                 <div class="flex justify-between items-center border-b border-slate-600 pb-1">
                     <h4 class="text-[10px] font-bold text-blue-400 uppercase tracking-wide">Compute Engine</h4>
-                    <span class="text-[9px] text-slate-500 font-mono" id="core-count">Detecting cores...</span>
-                </div>
-                <div class="flex bg-slate-800 rounded p-1 border border-slate-600" onmouseenter="app.showInfo('engineToggle')" onmouseleave="app.showInfo(null)">
-                    <button id="btn-eng-cpu" onclick="app.setEngine('CPU')" class="flex-1 text-[10px] py-1 rounded bg-blue-600 text-white font-bold transition-all flex justify-center items-center gap-1">
-                        <i data-lucide="cpu" class="w-3 h-3"></i> CPU Threads
-                    </button>
-                    <button id="btn-eng-gpu" onclick="app.setEngine('GPU')" class="flex-1 text-[10px] py-1 rounded text-slate-400 hover:text-white transition-all flex justify-center items-center gap-1">
-                        <i data-lucide="monitor" class="w-3 h-3"></i> GPU Accelerated
-                    </button>
+                    <span class="text-[10px] py-1 px-2 rounded bg-blue-600/20 text-blue-400 font-bold flex items-center gap-1 border border-blue-500/30" id="core-count">
+                        <i data-lucide="cpu" class="w-3 h-3"></i> Multi-Threading
+                    </span>
                 </div>
 
                 <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-wide border-b border-slate-600 pb-1 mt-2">Simulation</h4>
@@ -227,9 +225,33 @@
         </div>
     </div>
 
-    <div class="flex-1 p-2 md:p-4 flex flex-col gap-4 overflow-hidden relative" onclick="document.getElementById('sidebar').classList.remove('open')">
+    <div class="flex-1 p-2 md:p-4 flex flex-col gap-2 md:gap-4 overflow-hidden relative" style="min-width:0">
         
-        <div id="editor-controls" class="hidden absolute top-6 left-6 right-6 z-50 bg-slate-800 p-3 rounded-lg border border-slate-700 shadow-2xl flex justify-between items-center flex-wrap gap-2">
+        <!-- CONTROL BAR FOR MOBILE & DESKTOP -->
+        <div class="flex justify-between items-center bg-slate-800 p-2 md:p-3 rounded-xl border border-slate-700 shrink-0 shadow-lg z-10">
+            <div class="flex items-center gap-2">
+                <button id="btn-play" onclick="app.toggleRun()" class="w-24 md:w-32 py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition-all bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 hover:bg-emerald-500/30 text-sm">
+                    <i data-lucide="play" class="w-4 h-4"></i> <span id="play-text">Start</span>
+                </button>
+                <button id="btn-hyper" onclick="app.toggleHyper()" class="w-10 md:w-12 py-2 rounded-lg font-bold flex items-center justify-center transition-all border bg-slate-700 text-slate-400 border-slate-600 hover:text-yellow-400" title="Hyper Mode (No Render)">
+                    <i data-lucide="zap" class="w-4 h-4"></i>
+                </button>
+            </div>
+            
+            <div class="flex items-center gap-4 px-2 md:px-4">
+                <div class="flex flex-col items-end">
+                    <span class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Gen</span>
+                    <span id="stat-generation-main" class="text-lg md:text-xl font-mono font-bold leading-none text-white">1</span>
+                </div>
+                <div class="w-px h-8 bg-slate-700"></div>
+                <div class="flex flex-col items-end">
+                    <span class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Alive</span>
+                    <span id="stat-alive-main" class="text-lg md:text-xl font-mono font-bold leading-none text-emerald-400">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="editor-controls" class="hidden absolute top-20 left-6 right-6 z-50 bg-slate-800 p-3 rounded-lg border border-slate-700 shadow-2xl flex justify-between items-center flex-wrap gap-2">
             <div class="flex items-center gap-4 flex-wrap">
                 <input id="edit-name" type="text" class="bg-slate-700 border border-slate-600 rounded px-3 py-1 text-sm md:text-lg font-bold text-white w-32 md:w-48" placeholder="Track Name">
                 <div class="flex bg-slate-700 rounded p-1 gap-1">
@@ -237,39 +259,49 @@
                         <i data-lucide="move" class="w-3 h-3"></i> Path
                     </button>
                     <button onclick="editor.setMode('zones')" id="btn-mode-zones" class="px-2 py-1 text-xs rounded flex items-center gap-1 text-slate-400">
-                        <i data-lucide="target" class="w-3 h-3"></i> Zones
-                    </button>
-                    <button onclick="editor.setMode('decor')" id="btn-mode-decor" class="px-2 py-1 text-xs rounded flex items-center gap-1 text-slate-400">
-                        <i data-lucide="trees" class="w-3 h-3"></i> Decor
+                        <i data-lucide="target" class="w-3 h-3"></i> Zones/Areas
                     </button>
                 </div>
 
-                <div id="zone-tools" class="hidden flex items-center gap-2">
-                    <button onclick="editor.addZone('speed')" class="bg-red-500/20 text-red-400 border border-red-500/50 px-2 py-1 rounded text-[10px] md:text-xs">Spd</button>
-                    <button onclick="editor.addZone('precision')" class="bg-blue-500/20 text-blue-400 border border-blue-500/50 px-2 py-1 rounded text-[10px] md:text-xs">Pt</button>
+                <div id="zones-tools" class="hidden flex items-center gap-2">
+                    <button onclick="editor.addZone('speed')" class="bg-red-500/20 text-red-400 border border-red-500/50 px-2 py-1 rounded text-[10px] md:text-xs font-bold uppercase tracking-wide">Speed Boost</button>
+                    <button onclick="editor.addZone('precision')" class="bg-blue-500/20 text-blue-400 border border-blue-500/50 px-2 py-1 rounded text-[10px] md:text-xs font-bold uppercase tracking-wide">Points Area</button>
                     <button onclick="editor.deleteZone()" class="text-red-400 px-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                 </div>
 
-                <div id="decor-tools" class="hidden flex items-center gap-2">
-                    <button onclick="editor.addDecor('tree')" class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 px-2 py-1 rounded text-[10px] md:text-xs">🌲</button>
-                    <button onclick="editor.addDecor('rock')" class="bg-stone-500/20 text-stone-400 border border-stone-500/50 px-2 py-1 rounded text-[10px] md:text-xs">🪨</button>
-                    <button onclick="editor.deleteDecor()" class="text-red-400 px-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                </div>
-
                  <div id="path-tools" class="flex items-center gap-2 md:gap-4">
+                    <button onclick="editor.deleteSelectedPoint()" id="btn-del-point" class="hidden px-2 py-1 bg-red-500/20 text-red-400 border border-red-500/50 rounded text-xs flex items-center gap-1">
+                        <i data-lucide="trash-2" class="w-3 h-3"></i> Del Point
+                    </button>
                     <div class="flex flex-col w-16 md:w-20">
                         <span class="text-[8px] md:text-[10px] text-slate-400">Width</span>
                         <input type="range" min="20" max="150" id="edit-width" oninput="editor.updateWidth(this.value)" class="w-full">
                     </div>
                      <div class="flex flex-col w-16 md:w-20">
-                        <span class="text-[8px] md:text-[10px] text-slate-400">Angle</span>
+                        <span class="text-[8px] md:text-[10px] text-slate-400">Start Angle</span>
                         <input type="range" min="0" max="360" id="edit-angle" oninput="editor.updateAngle(this.value)" class="w-full">
                     </div>
                 </div>
             </div>
             <div class="flex gap-2">
                 <button onclick="editor.cancel()" class="px-2 py-1 md:px-4 md:py-2 bg-slate-700 hover:bg-slate-600 rounded text-xs md:text-sm">Cancel</button>
-                <button onclick="editor.save()" class="px-2 py-1 md:px-4 md:py-2 bg-emerald-600 hover:bg-emerald-500 rounded font-bold text-xs md:text-sm">Save</button>
+                <button onclick="editor.save()" class="px-2 py-1 md:px-4 md:py-2 bg-emerald-600 hover:bg-emerald-500 rounded font-bold text-xs md:text-sm">Save Track</button>
+            </div>
+        </div>
+
+        <!-- Code Export Modal -->
+        <div id="code-modal" class="hidden absolute inset-0 z-[100] bg-black/80 flex items-center justify-center p-4" onclick="if(event.target===this)this.classList.add('hidden')">
+            <div class="bg-slate-800 border border-slate-600 rounded-xl p-5 w-full max-w-2xl shadow-2xl flex flex-col gap-3">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-base font-bold text-emerald-400 flex items-center gap-2"><i data-lucide="code" class="w-4 h-4"></i> Track Code — Paste into resetTracks()</h2>
+                    <button onclick="document.getElementById('code-modal').classList.add('hidden')" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+                </div>
+                <p class="text-xs text-slate-400">Copy this line and paste it inside the <code class="text-yellow-300">this.state.tracks = [...]</code> array in <code class="text-yellow-300">resetTracks()</code>.</p>
+                <textarea id="code-output" readonly class="w-full bg-slate-950 text-emerald-300 text-xs font-mono p-3 rounded border border-slate-600 h-32 resize-none focus:outline-none focus:border-emerald-500" onclick="this.select()"></textarea>
+                <div class="flex gap-2 justify-end">
+                    <button onclick="navigator.clipboard.writeText(document.getElementById('code-output').value).then(()=>{this.textContent='✓ Copied!';setTimeout(()=>this.textContent='Copy',2000)})" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded text-sm font-bold flex items-center gap-2">Copy</button>
+                    <button onclick="document.getElementById('code-modal').classList.add('hidden')" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm">Close</button>
+                </div>
             </div>
         </div>
 
@@ -280,11 +312,6 @@
                 <i data-lucide="zap" class="w-4 h-4 text-yellow-400"></i>
                 <span class="text-xs font-bold uppercase tracking-wider">Hyper Mode Active</span>
             </div>
-            
-            <div id="engine-status" class="absolute bottom-4 left-4 bg-slate-900/80 border border-slate-700 text-slate-300 px-3 py-1.5 rounded text-[10px] flex items-center gap-2 backdrop-blur-sm pointer-events-none z-10">
-                <i data-lucide="cpu" class="w-3 h-3 text-blue-400" id="engine-icon"></i>
-                <span id="engine-label">Engine: Starting...</span>
-            </div>
         </div>
 
         <div class="h-28 md:h-36 bg-slate-800 rounded-xl p-2 border border-slate-700 shrink-0 relative hidden lg:block">
@@ -293,11 +320,11 @@
     </div>
 
 <script>
-/** * TrackML - v9.0 ArrayBuffer Edition (Ultimate Zero-Copy CPU Optimization)
+/** * TrackML - v12.5 Crisp Edges Edition
  */
 
-const CANVAS_WIDTH = 1200; //x
-const CANVAS_HEIGHT = 900; //y
+const CANVAS_WIDTH = 1200; 
+const CANVAS_HEIGHT = 900; 
 const CAR_WIDTH = 14;
 const CAR_HEIGHT = 7;
 const SENSOR_LENGTH = 180;
@@ -305,50 +332,59 @@ const SENSOR_ANGLES = [-Math.PI/2, -Math.PI/3, -Math.PI/6, 0, Math.PI/6, Math.PI
 const SENSOR_COUNT = SENSOR_ANGLES.length;
 
 const SETTING_DESCRIPTIONS = {
-    engineToggle: "CPU uses a Zero-Copy Transferable Buffer utilizing 100% of physical cores simultaneously. GPU uses WebGL pipelining.",
     speedMultiplier: "Simulation cycles per frame. High values train extremely fast.",
-    populationSize: "Number of cars per generation. High values scale seamlessly across CPU cores.",
+    populationSize: "Number of cars per generation. Scales perfectly via multi-threading.",
     eliteClones: "Top performers copied to the next generation without mutation. Prevents regression.",
-    mutationRate: "Randomness in brain evolution. 25% provides excellent exploratory learning.",
+    mutationRate: "Randomness in brain evolution. 15-25% provides excellent exploratory learning.",
     hiddenLayers: "Brain complexity. More layers = smarter but heavier computation.",
     initialTTL: "Time to Live. Frames allowed before death if no checkpoint is reached.",
     targetLaps: "Laps needed to trigger the next generation automatically.",
     maxSpeed: "Top speed. Higher speeds require faster AI reaction times.",
-    acceleration: "Engine power.", turnSpeed: "Steering sensitivity.", grip: "Lateral Friction. 96% is balanced."
+    acceleration: "Engine power.", turnSpeed: "Steering sensitivity.", grip: "Lateral Friction. 93% is balanced."
 };
 
 function lerp(a, b, t) { return a + (b - a) * t; }
-function getIntersection(A, B, C, D) {
-    const tTop = (D.x - C.x) * (A.y - C.y) - (D.y - C.y) * (A.x - C.x);
-    const uTop = (C.y - A.y) * (A.x - B.x) - (C.x - A.x) * (A.y - B.y);
-    const bottom = (D.y - C.y) * (B.x - A.x) - (D.x - C.x) * (B.y - A.y);
-    if (bottom !== 0) {
-        const t = tTop / bottom; const u = uTop / bottom;
-        if (t >= 0 && t <= 1 && u >= 0 && u <= 1) return { x: lerp(A.x, B.x, t), y: lerp(A.y, B.y, t) };
-    } return null;
-}
 
 // --- Track Generator ---
-function generateTrackFromPath(id, name, pathInput, width, customStartPos, customStartAngle, zones = [], difficulty = 'easy', decorations = []) {
+function generateTrackFromPath(id, name, pathInput, width, customStartPos, customStartAngle, zones = []) {
     const walls = []; const checkpoints = []; const leftPoly = []; const rightPoly = [];
-    const emptyResult = { id, name, path: pathInput || [], trackWidth: width, walls: [], checkpoints: [], startPos: {x:100,y:100}, startAngle: 0, zones: zones||[], difficulty, decorations: decorations||[], leftPoly, rightPoly };
+    const emptyResult = { id, name, path: pathInput || [], trackWidth: width, walls: [], checkpoints: [], startPos: {x:100,y:100}, startAngle: 0, zones: zones||[], leftPoly, rightPoly };
 
-    if (!pathInput || pathInput.length < 2) return emptyResult;
+    if (!pathInput || pathInput.length < 3) return emptyResult;
+    
+    // Copy base path to close it safely
     let path = [...pathInput];
-    const start = path[0], end = path[path.length - 1];
-    if (Math.hypot(start.x - end.x, start.y - end.y) > 5) path.push({ x: start.x, y: start.y }); else path[path.length - 1] = { x: start.x, y: start.y };
+    let start = path[0], end = path[path.length - 1];
+    if (Math.hypot(start.x - end.x, start.y - end.y) < 5) path.pop(); 
+    
+    let nPoints = path.length;
+    if(nPoints < 3) return emptyResult;
 
-    const pts = path.slice(0, -1); const len = pts.length; if (len < 2) return emptyResult; 
+    // Linear subdivision for dense checkpoints (improves AI learning)
+    let densePath = [];
+    for(let i=0; i<nPoints; i++) {
+        let p1 = path[i], p2 = path[(i+1)%nPoints];
+        let dist = Math.hypot(p2.x-p1.x, p2.y-p1.y);
+        let steps = Math.max(1, Math.ceil(dist / 80));
+        for(let j=0; j<steps; j++) {
+            densePath.push({ x: lerp(p1.x, p2.x, j/steps), y: lerp(p1.y, p2.y, j/steps) });
+        }
+    }
 
+    const len = densePath.length; 
     for(let i=0; i<len; i++) {
-        const curr = pts[i], prev = pts[(i - 1 + len) % len], next = pts[(i + 1) % len];
+        const curr = densePath[i], prev = densePath[(i - 1 + len) % len], next = densePath[(i + 1) % len];
         let dx1 = curr.x - prev.x, dy1 = curr.y - prev.y, d1 = Math.hypot(dx1, dy1); if(d1>0){ dx1/=d1; dy1/=d1; }
         let dx2 = next.x - curr.x, dy2 = next.y - curr.y, d2 = Math.hypot(dx2, dy2); if(d2>0){ dx2/=d2; dy2/=d2; }
         let tx = dx1 + dx2, ty = dy1 + dy2, tlen = Math.hypot(tx, ty);
         let nx, ny; if (tlen < 0.001) { nx = -dy1; ny = dx1; } else { tx /= tlen; ty /= tlen; nx = -ty; ny = tx; }
 
-        let miterLen = width / Math.max(0.1, (nx * (-dy1) + ny * dx1)); 
-        miterLen = Math.min(miterLen, width * 1.0, Math.hypot(curr.x-prev.x, curr.y-prev.y)*0.8, Math.hypot(next.x-curr.x, next.y-curr.y)*0.8);
+        let dot = (nx * (-dy1) + ny * dx1);
+        let miterLen = width / Math.max(0.1, dot); 
+        
+        // Strict anti-overlap clamping for very sharp corners
+        let maxMiter = Math.min(Math.hypot(curr.x-prev.x, curr.y-prev.y), Math.hypot(next.x-curr.x, next.y-curr.y)) * 0.9;
+        miterLen = Math.min(miterLen, maxMiter, width * 1.5);
         
         leftPoly.push({ x: curr.x + nx * miterLen, y: curr.y + ny * miterLen });
         rightPoly.push({ x: curr.x - nx * miterLen, y: curr.y - ny * miterLen });
@@ -356,67 +392,98 @@ function generateTrackFromPath(id, name, pathInput, width, customStartPos, custo
 
     for(let i=0; i < len; i++) {
         const i2 = (i+1)%len;
-        const w1 = { p1: leftPoly[i], p2: leftPoly[i2], segmentIndex: i }; w1.center = { x: (w1.p1.x + w1.p2.x)/2, y: (w1.p1.y + w1.p2.y)/2 }; walls.push(w1);
-        const w2 = { p1: rightPoly[i], p2: rightPoly[i2], segmentIndex: i }; w2.center = { x: (w2.p1.x + w2.p2.x)/2, y: (w2.p1.y + w2.p2.y)/2 }; walls.push(w2);
-        checkpoints.push({ index: i, p1: leftPoly[i], p2: rightPoly[i], center: pts[i] });
+        const w1 = { p1: leftPoly[i], p2: leftPoly[i2], segmentIndex: i }; walls.push(w1);
+        const w2 = { p1: rightPoly[i], p2: rightPoly[i2], segmentIndex: i }; walls.push(w2);
+        checkpoints.push({ index: i, p1: leftPoly[i], p2: rightPoly[i], center: densePath[i] });
     }
     
     let finalStartAngle = 0;
     if (customStartAngle !== undefined && customStartAngle !== null) finalStartAngle = customStartAngle;
-    else if (pts.length > 1) finalStartAngle = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x);
+    else if (densePath.length > 1) finalStartAngle = Math.atan2(densePath[1].y - densePath[0].y, densePath[1].x - densePath[0].x);
 
-    let finalStartPos = customStartPos || {x:pts[0].x, y:pts[0].y};
+    let finalStartPos = customStartPos || {x:densePath[0].x, y:densePath[0].y};
     
-    return { id, name, path, trackWidth: width, walls, checkpoints, startPos: finalStartPos, startAngle: finalStartAngle, zones, difficulty, decorations, leftPoly, rightPoly };
+    return { id, name, path: pathInput, trackWidth: width, walls, checkpoints, startPos: finalStartPos, startAngle: finalStartAngle, zones, leftPoly, rightPoly };
 }
 
-// --- ULTRA OPTIMIZED ZERO-COPY WEB WORKER ---
+// --- LIGHTNING ZERO-ALLOCATION WEB WORKER ---
 const workerScript = `
-    const CAR_WIDTH = 14; const CAR_HEIGHT = 7; const SENSOR_LENGTH = 180;
+    const CAR_WIDTH = 14, CAR_HEIGHT = 7, SENSOR_LENGTH = 180;
     const SENSOR_ANGLES = [-Math.PI/2, -Math.PI/3, -Math.PI/6, 0, Math.PI/6, Math.PI/3, Math.PI/2];
+    const SENS_LEN = SENSOR_ANGLES.length;
 
     let cachedTrack = null;
     let cachedConfig = null;
     let localCars = [];
+    let wallsBySegment = [];
 
-    function lerp(a, b, t) { return a + (b - a) * t; }
-    function getIntersection(A, B, C, D) {
-        const tTop = (D.x - C.x) * (A.y - C.y) - (D.y - C.y) * (A.x - C.x);
-        const uTop = (C.y - A.y) * (A.x - B.x) - (C.x - A.x) * (A.y - B.y);
-        const bottom = (D.y - C.y) * (B.x - A.x) - (D.x - C.x) * (B.y - A.y);
-        if (bottom !== 0) {
-            const t = tTop / bottom; const u = uTop / bottom;
-            if (t >= 0 && t <= 1 && u >= 0 && u <= 1) return { x: lerp(A.x, B.x, t), y: lerp(A.y, B.y, t) };
-        } return null;
+    // Pre-compute spatial wall lookup structure ONCE per track load
+    function initTrackPrecomp() {
+        if (!cachedTrack) return;
+        const tSegs = cachedTrack.checkpoints.length;
+        wallsBySegment = new Array(tSegs);
+        for (let i = 0; i < tSegs; i++) {
+            wallsBySegment[i] = [];
+            for (let j = -5; j <= 8; j++) {
+                let seg = (i + j + tSegs * 10) % tSegs;
+                for (let w of cachedTrack.walls) {
+                    if (w.segmentIndex === undefined || w.segmentIndex === seg) {
+                        if (!wallsBySegment[i].includes(w)) wallsBySegment[i].push(w);
+                    }
+                }
+            }
+        }
     }
 
-    function feedForwardCPU(brain, inputs) {
-        const hL = new Float32Array(brain.biasH.length); const oL = new Float32Array(brain.biasO.length);
+    // High performance inline intersection math (zero object allocations)
+    function fastIntersect(Ax, Ay, Bx, By, Cx, Cy, Dx, Dy) {
+        const bottom = (Dy - Cy) * (Bx - Ax) - (Dx - Cx) * (By - Ay);
+        if (bottom === 0) return false;
+        const t = ((Dx - Cx) * (Ay - Cy) - (Dy - Cy) * (Ax - Cx)) / bottom;
+        if (t < 0 || t > 1) return false;
+        const u = ((Cy - Ay) * (Ax - Bx) - (Cx - Ax) * (Ay - By)) / bottom;
+        if (u < 0 || u > 1) return false;
+        return true;
+    }
+
+    function fastIntersectDist(Ax, Ay, Bx, By, Cx, Cy, Dx, Dy) {
+        const bottom = (Dy - Cy) * (Bx - Ax) - (Dx - Cx) * (By - Ay);
+        if (bottom === 0) return 1.0;
+        const t = ((Dx - Cx) * (Ay - Cy) - (Dy - Cy) * (Ax - Cx)) / bottom;
+        if (t < 0 || t > 1) return 1.0;
+        const u = ((Cy - Ay) * (Ax - Bx) - (Cx - Ax) * (Ay - By)) / bottom;
+        if (u >= 0 && u <= 1) return t;
+        return 1.0;
+    }
+
+    // Pre-allocated flat array mutation
+    function feedForwardCPU(c) {
+        let b = c.brain, ins = c.sensorsInputs, hL = c.hL, oL = c.oL;
         for (let i = 0; i < hL.length; i++) {
-            let sum = 0; for (let j = 0; j < inputs.length; j++) sum += inputs[j] * brain.weightsIH[j][i];
-            hL[i] = Math.tanh(sum + brain.biasH[i]);
+            let sum = b.biasH[i];
+            for (let j = 0; j < ins.length; j++) sum += ins[j] * b.weightsIH[j][i];
+            hL[i] = Math.tanh(sum);
         }
         for (let i = 0; i < oL.length; i++) {
-            let sum = 0; for (let j = 0; j < hL.length; j++) sum += hL[j] * brain.weightsHO[j][i];
-            oL[i] = Math.tanh(sum + brain.biasO[i]);
+            let sum = b.biasO[i];
+            for (let j = 0; j < hL.length; j++) sum += hL[j] * b.weightsHO[j][i];
+            oL[i] = Math.tanh(sum);
         }
-        return Array.from(oL);
     }
 
-    function updateCar(car, walls, checkpoints, zones, config) {
-        if (car.crashed) return;
-        car.timeToLive--; car.framesAlive++;
-        if (car.timeToLive <= 0) { car.crashed = true; return; }
+    function updateCar(c, config) {
+        if (c.crashed) return;
+        c.timeToLive--; c.framesAlive++;
+        if (c.timeToLive <= 0) { c.crashed = true; return; }
 
-        const prevX = car.x, prevY = car.y;
-        const steer = (car.inputs && !isNaN(car.inputs[0])) ? car.inputs[0] : 0;
-        const throttle = (car.inputs && !isNaN(car.inputs[1])) ? car.inputs[1] : 0;
+        const steer = c.oL[0] || 0;
+        const throttle = c.oL[1] || 0;
 
-        const speedFactor = Math.min(car.speed / 4.0, 1.0); 
-        car.angle += steer * config.turnSpeed * (0.2 + 0.8 * speedFactor); 
+        const speedFactor = Math.min(c.speed / 4.0, 1.0); 
+        c.angle += steer * config.turnSpeed * (0.2 + 0.8 * speedFactor); 
 
-        const cosA = Math.cos(car.angle), sinA = Math.sin(car.angle);
-        let vx = car.vx, vy = car.vy;
+        const cosA = Math.cos(c.angle), sinA = Math.sin(c.angle);
+        let vx = c.vx, vy = c.vy;
 
         if (throttle > 0) { vx += cosA * throttle * config.acceleration; vy += sinA * throttle * config.acceleration; } 
         else { vx *= 0.95; vy *= 0.95; }
@@ -428,166 +495,171 @@ const workerScript = `
         vy += cosA * -latVel * grip;
         vx *= 0.99; vy *= 0.99;
         
-        const speed = Math.hypot(vx, vy);
-        if(speed > config.maxSpeed) { const r = config.maxSpeed/speed; vx *= r; vy *= r; }
+        let speed = Math.sqrt(vx*vx + vy*vy);
+        if(speed > config.maxSpeed) { const r = config.maxSpeed/speed; vx *= r; vy *= r; speed = config.maxSpeed; }
 
-        car.vx = vx; car.vy = vy; car.speed = speed;
-        car.x += vx; car.y += vy;
-        car.fitness += (speed / config.maxSpeed) * 0.1;
+        c.vx = vx; c.vy = vy; c.speed = speed;
+        const prevX = c.x, prevY = c.y;
+        c.x += vx; c.y += vy;
+        c.fitness += (speed / config.maxSpeed) * 0.1;
 
-        if(car.x < -100 || car.x > 1300 || car.y < -100 || car.y > 1000) { car.crashed = true; return; }
+        if(c.x < -100 || c.x > 1300 || c.y < -100 || c.y > 1000) { c.crashed = true; return; }
 
-        const totalSegs = checkpoints.length;
-        let curSeg = checkpoints[car.nextCheckpointIndex] ? checkpoints[car.nextCheckpointIndex].index : 0;
-        
-        const validSegs = [ 
-            (curSeg - 2 + totalSegs) % totalSegs, (curSeg - 1 + totalSegs) % totalSegs, curSeg, 
-            (curSeg + 1) % totalSegs, (curSeg + 2) % totalSegs, (curSeg + 3) % totalSegs
-        ];
-        
-        const nearbyWalls = [];
-        for(let i=0; i<walls.length; i++) {
-            if(walls[i].segmentIndex === undefined || validSegs.includes(walls[i].segmentIndex)) nearbyWalls.push(walls[i]);
-        }
+        const curSeg = cachedTrack.checkpoints[c.nextCheckpointIndex] ? cachedTrack.checkpoints[c.nextCheckpointIndex].index : 0;
+        const nearbyWalls = wallsBySegment[curSeg] || [];
 
         const hw = CAR_WIDTH/2, hh = CAR_HEIGHT/2;
-        const corners = [
-            {x: car.x + cosA*hw - sinA*hh, y: car.y + sinA*hw + cosA*hh},
-            {x: car.x + cosA*hw + sinA*hh, y: car.y + sinA*hw - cosA*hh},
-            {x: car.x - cosA*hw + sinA*hh, y: car.y - sinA*hw - cosA*hh},
-            {x: car.x - cosA*hw - sinA*hh, y: car.y - sinA*hw + cosA*hh}
+        const cxs = [
+            c.x + cosA*hw - sinA*hh, c.x + cosA*hw + sinA*hh,
+            c.x - cosA*hw + sinA*hh, c.x - cosA*hw - sinA*hh
+        ];
+        const cys = [
+            c.y + sinA*hw + cosA*hh, c.y + sinA*hw - cosA*hh,
+            c.y - sinA*hw - cosA*hh, c.y - sinA*hw + cosA*hh
         ];
 
-        for (let w of nearbyWalls) {
-            if (getIntersection({x:prevX, y:prevY}, {x:car.x, y:car.y}, w.p1, w.p2)) { car.crashed = true; car.fitness -= 50; return; }
-            for(let c=0; c<4; c++) {
-                if (getIntersection(corners[c], corners[(c+1)%4], w.p1, w.p2)) { car.crashed = true; car.fitness -= 50; return; }
+        for (let i = 0; i < nearbyWalls.length; i++) {
+            let w = nearbyWalls[i];
+            if (fastIntersect(prevX, prevY, c.x, c.y, w.p1.x, w.p1.y, w.p2.x, w.p2.y)) { c.crashed = true; c.fitness -= 50; return; }
+            for(let j=0; j<4; j++) {
+                let jn = (j+1)%4;
+                if (fastIntersect(cxs[j], cys[j], cxs[jn], cys[jn], w.p1.x, w.p1.y, w.p2.x, w.p2.y)) { c.crashed = true; c.fitness -= 50; return; }
             }
         }
 
         let fitMult = 1.0;
-        for (let z of zones) {
-            if ((car.x-z.x)**2 + (car.y-z.y)**2 < z.radius**2) {
-                if (z.type === 'speed' && car.speed > config.maxSpeed * 0.7) car.fitness += 2.0;
-                else if (z.type === 'precision') car.fitness += 2.0;
+        for (let i = 0; i < cachedTrack.zones.length; i++) {
+            let z = cachedTrack.zones[i];
+            let dx = c.x - z.x, dy = c.y - z.y;
+            if (dx*dx + dy*dy < z.radius*z.radius) {
+                if (z.type === 'speed' && c.speed > config.maxSpeed * 0.7) c.fitness += 2.0;
+                else if (z.type === 'precision') c.fitness += 2.0;
                 else if (z.type === 'focus') fitMult = 3.0;
             }
         }
 
-        const nCP = checkpoints[car.nextCheckpointIndex];
+        const nCP = cachedTrack.checkpoints[c.nextCheckpointIndex];
         if (nCP) {
+            let dx = c.x - nCP.center.x, dy = c.y - nCP.center.y;
+            if (dx*dx + dy*dy > 160000) { c.crashed = true; return; } // off course
+
             const cx = (nCP.p1.x+nCP.p2.x)/2, cy = (nCP.p1.y+nCP.p2.y)/2;
-            if ((car.x-cx)**2 + (car.y-cy)**2 < 2500) { 
-                 if (getIntersection({x:prevX, y:prevY}, {x:car.x, y:car.y}, nCP.p1, nCP.p2) || ((car.x-cx)**2+(car.y-cy)**2 < 400)) { 
-                    car.checkpointsReached++; car.nextCheckpointIndex = (car.nextCheckpointIndex + 1) % checkpoints.length;
-                    car.timeToLive += 150; if (car.timeToLive > 600) car.timeToLive = 600;
-                    car.fitness += 500 * fitMult; 
-                    if (car.nextCheckpointIndex === 0 && checkpoints.length > 2) {
-                        car.completedLaps++; 
-                        car.lapTimes.push(car.framesAlive); 
-                        car.lastLapTime = (car.lapTimes[car.lapTimes.length-1] - (car.lapTimes[car.lapTimes.length-2]||0)) / 60;
-                        car.fitness += 3000 * fitMult; 
+            let cdx = c.x - cx, cdy = c.y - cy;
+            
+            if (cdx*cdx + cdy*cdy < 2500) { 
+                 if (fastIntersect(prevX, prevY, c.x, c.y, nCP.p1.x, nCP.p1.y, nCP.p2.x, nCP.p2.y) || (cdx*cdx+cdy*cdy < 400)) { 
+                    c.checkpointsReached++; c.nextCheckpointIndex = (c.nextCheckpointIndex + 1) % cachedTrack.checkpoints.length;
+                    c.timeToLive += 150; if (c.timeToLive > 600) c.timeToLive = 600;
+                    c.fitness += 500 * fitMult; 
+                    if (c.nextCheckpointIndex === 0 && cachedTrack.checkpoints.length > 2) {
+                        c.completedLaps++; 
+                        c.lapTimes.push(c.framesAlive); 
+                        c.lastLapTime = (c.lapTimes[c.lapTimes.length-1] - (c.lapTimes[c.lapTimes.length-2]||0)) / 60;
+                        c.fitness += 3000 * fitMult; 
                     }
                  }
             }
         }
 
-        car.sensors = [];
-        for (let i = 0; i < SENSOR_ANGLES.length; i++) {
-            let rA = car.angle + SENSOR_ANGLES[i];
-            let ex = car.x + Math.cos(rA) * SENSOR_LENGTH, ey = car.y + Math.sin(rA) * SENSOR_LENGTH;
-            let minOffset = 1;
-            for (let w of nearbyWalls) {
-                 const touch = getIntersection({x:car.x,y:car.y}, {x:ex,y:ey}, w.p1, w.p2);
-                 if (touch) minOffset = Math.min(minOffset, Math.sqrt((touch.x-car.x)**2 + (touch.y-car.y)**2) / SENSOR_LENGTH);
+        for (let i = 0; i < SENS_LEN; i++) {
+            let rA = c.angle + SENSOR_ANGLES[i];
+            let ex = c.x + Math.cos(rA) * SENSOR_LENGTH, ey = c.y + Math.sin(rA) * SENSOR_LENGTH;
+            let minT = 1.0;
+            for (let j = 0; j < nearbyWalls.length; j++) {
+                let w = nearbyWalls[j];
+                let t = fastIntersectDist(c.x, c.y, ex, ey, w.p1.x, w.p1.y, w.p2.x, w.p2.y);
+                if (t < minT) minT = t;
             }
-            car.sensors.push(1 - minOffset);
+            c.sensorsInputs[i] = 1.0 - minT;
+            c.sensors[i] = 1.0 - minT; 
         }
 
         const tX = (nCP.p1.x + nCP.p2.x)/2, tY = (nCP.p1.y + nCP.p2.y)/2;
-        let relAng = Math.atan2(tY - car.y, tX - car.x) - car.angle;
+        let relAng = Math.atan2(tY - c.y, tX - c.x) - c.angle;
         while(relAng > Math.PI) relAng -= 2*Math.PI; while(relAng < -Math.PI) relAng += 2*Math.PI;
         
-        car.sensorsInputs = [...car.sensors, car.speed / config.maxSpeed, relAng / Math.PI];
-        car.inputs = feedForwardCPU(car.brain, car.sensorsInputs);
+        c.sensorsInputs[SENS_LEN] = c.speed / config.maxSpeed;
+        c.sensorsInputs[SENS_LEN + 1] = relAng / Math.PI;
+        
+        feedForwardCPU(c);
     }
 
     self.onmessage = function(e) {
-        if(e.data.type === 'initTrack') { cachedTrack = e.data.track; cachedConfig = e.data.config; }
-        else if(e.data.type === 'initCars') { localCars = e.data.cars; }
+        if(e.data.type === 'initTrack') { 
+            cachedTrack = e.data.track; 
+            cachedConfig = e.data.config; 
+            initTrackPrecomp();
+        }
+        else if(e.data.type === 'initCars') { 
+            localCars = e.data.cars; 
+            for(let i=0; i<localCars.length; i++) {
+                let c = localCars[i];
+                c.hL = new Float32Array(c.brain.biasH.length);
+                c.oL = new Float32Array(c.brain.biasO.length);
+                c.sensorsInputs = new Float32Array(SENS_LEN + 2);
+                c.sensors = new Float32Array(SENS_LEN);
+            }
+        }
         else if(e.data.type === 'run') {
             const iters = e.data.iters;
             let maxLaps = 0; let allCrashed = true;
 
             for(let i=0; i<iters; i++) {
                 allCrashed = true;
-                for(let c of localCars) {
-                    if(!c.crashed) {
-                        updateCar(c, cachedTrack.walls, cachedTrack.checkpoints, cachedTrack.zones, cachedConfig);
+                for(let c=0; c<localCars.length; c++) {
+                    if(!localCars[c].crashed) {
+                        updateCar(localCars[c], cachedConfig);
                         allCrashed = false;
-                        if(c.completedLaps > maxLaps) maxLaps = c.completedLaps;
+                        if(localCars[c].completedLaps > maxLaps) maxLaps = localCars[c].completedLaps;
                     }
                 }
                 if(allCrashed || maxLaps >= cachedConfig.targetLaps) break;
             }
 
-            // ZERO-COPY BUFFER (11 Floats per car)
-            const buffer = new Float32Array(localCars.length * 11);
+            const stride = 11 + SENS_LEN;
+            const buffer = new Float32Array(localCars.length * stride);
+            
             for(let i=0; i<localCars.length; i++) {
                 let c = localCars[i];
-                buffer[i*11] = c.id;
-                buffer[i*11+1] = c.crashed ? 1 : 0;
-                buffer[i*11+2] = c.x;
-                buffer[i*11+3] = c.y;
-                buffer[i*11+4] = c.angle;
-                buffer[i*11+5] = c.speed;
-                buffer[i*11+6] = c.inputs ? c.inputs[0] : 0;
-                buffer[i*11+7] = c.inputs ? c.inputs[1] : 0;
-                buffer[i*11+8] = c.completedLaps;
-                buffer[i*11+9] = c.fitness;
-                buffer[i*11+10] = c.lastLapTime || 0;
+                let idx = i * stride;
+                buffer[idx] = c.id;
+                buffer[idx+1] = c.crashed ? 1 : 0;
+                buffer[idx+2] = c.x;
+                buffer[idx+3] = c.y;
+                buffer[idx+4] = c.angle;
+                buffer[idx+5] = c.speed;
+                buffer[idx+6] = c.oL[0] || 0;
+                buffer[idx+7] = c.oL[1] || 0;
+                buffer[idx+8] = c.completedLaps;
+                buffer[idx+9] = c.fitness;
+                buffer[idx+10] = c.lastLapTime || 0;
+                for(let j=0; j<SENS_LEN; j++) buffer[idx+11+j] = c.sensors[j];
             }
-            // Transfer ownership of array back to main thread 
             self.postMessage({ type: 'done', buffer, allCrashed, maxLaps }, [buffer.buffer]);
         }
     };
 `;
 
 const Engine = {
-    mode: 'CPU', 
-    gpuInstance: null, kernelIH: null, kernelHO: null, workers: [], coreCount: 1, gpuData: { wIH: null, bH: null, wHO: null, bO: null }, 
+    workers: [], coreCount: 1, 
 
     init: function() {
         this.coreCount = navigator.hardwareConcurrency || 4;
-        document.getElementById('core-count').innerText = `${this.coreCount} Cores Active`;
+        document.getElementById('core-count').innerHTML = `<i data-lucide="cpu" class="w-3 h-3"></i> ${this.coreCount} Cores Active`;
         
         const blob = new Blob([workerScript], {type: 'application/javascript'});
         const url = URL.createObjectURL(blob);
-        for(let i=0; i<this.coreCount; i++) this.workers.push(new Worker(url));
-
-        if(typeof GPU !== 'undefined') {
-            try { this.gpuInstance = new GPU.GPU({ mode: 'gpu' }); } catch(e) {}
+        for(let i=0; i<this.coreCount; i++) {
+            const w = new Worker(url);
+            w.onerror = (err) => console.error("Worker Thread Error:", err.message);
+            this.workers.push(w);
         }
-        this.setMode('CPU');
-    },
-
-    setMode: function(mode) {
-        this.mode = mode;
-        const icon = document.getElementById('engine-icon'); const label = document.getElementById('engine-label');
-        if(mode === 'CPU') {
-            icon.setAttribute('data-lucide', 'cpu'); label.innerText = `CPU Mode (${this.coreCount} Threads)`;
-            document.getElementById('btn-eng-cpu').className = "flex-1 text-[10px] py-1 rounded bg-blue-600 text-white font-bold transition-all flex justify-center items-center gap-1";
-            document.getElementById('btn-eng-gpu').className = "flex-1 text-[10px] py-1 rounded text-slate-400 hover:text-white transition-all flex justify-center items-center gap-1";
-        } else {
-            icon.setAttribute('data-lucide', 'monitor'); label.innerText = "GPU Mode (Accelerated Pipelining)";
-            document.getElementById('btn-eng-gpu').className = "flex-1 text-[10px] py-1 rounded bg-blue-600 text-white font-bold transition-all flex justify-center items-center gap-1";
-            document.getElementById('btn-eng-cpu').className = "flex-1 text-[10px] py-1 rounded text-slate-400 hover:text-white transition-all flex justify-center items-center gap-1";
-        }
-        if(window.lucide) lucide.createIcons();
     },
 
     updateWorkerTrack: function(track, config) {
-        const payload = { type: 'initTrack', track: { walls: track.walls, checkpoints: track.checkpoints, zones: track.zones }, config };
+        const strippedWalls = track.walls.map(w => ({p1:{x:w.p1.x, y:w.p1.y}, p2:{x:w.p2.x, y:w.p2.y}, segmentIndex: w.segmentIndex}));
+        const strippedCPs = track.checkpoints.map(c => ({index:c.index, p1:{x:c.p1.x, y:c.p1.y}, p2:{x:c.p2.x, y:c.p2.y}, center:{x:c.center.x, y:c.center.y}}));
+        const payload = { type: 'initTrack', track: { walls: strippedWalls, checkpoints: strippedCPs, zones: track.zones }, config };
         this.workers.forEach(w => w.postMessage(payload));
     },
     
@@ -611,6 +683,7 @@ const Engine = {
     runCPUWorkers: function(iters) {
         return new Promise(resolve => {
             let completed = 0; let shouldEvolve = false; let totalMaxLaps = 0;
+            const stride = 11 + SENSOR_COUNT;
             
             this.workers.forEach(w => {
                 w.onmessage = (e) => {
@@ -618,26 +691,29 @@ const Engine = {
                     if(maxLaps > totalMaxLaps) totalMaxLaps = maxLaps;
                     if(allCrashed || maxLaps >= app.state.targetLaps) shouldEvolve = true;
                     
-                    // Unpack highly optimized float array 
-                    for(let i=0; i<buffer.length/11; i++) {
-                        const id = buffer[i*11];
+                    for(let i=0; i<buffer.length/stride; i++) {
+                        let idx = i * stride;
+                        const id = buffer[idx];
                         const c = app.state.cars[id];
                         if(!c) continue;
                         
-                        c.crashed = buffer[i*11+1] === 1;
-                        c.x = buffer[i*11+2];
-                        c.y = buffer[i*11+3];
-                        c.angle = buffer[i*11+4];
-                        c.speed = buffer[i*11+5];
-                        c.inputs = [buffer[i*11+6], buffer[i*11+7]];
+                        c.crashed = buffer[idx+1] === 1;
+                        c.x = buffer[idx+2];
+                        c.y = buffer[idx+3];
+                        c.angle = buffer[idx+4];
+                        c.speed = buffer[idx+5];
+                        c.inputs[0] = buffer[idx+6];
+                        c.inputs[1] = buffer[idx+7];
                         
                         const prevLaps = c.completedLaps;
-                        c.completedLaps = buffer[i*11+8];
-                        c.fitness = buffer[i*11+9];
+                        c.completedLaps = buffer[idx+8];
+                        c.fitness = buffer[idx+9];
+                        
+                        for(let j=0; j<SENSOR_COUNT; j++) c.sensors[j] = buffer[idx+11+j];
                         
                         if(c.completedLaps > prevLaps) {
                             c.isLapFinished = true;
-                            const time = buffer[i*11+10];
+                            const time = buffer[idx+10];
                             if(!app.state.bestTimes.gen || time < app.state.bestTimes.gen) app.state.bestTimes.gen = time;
                             if(!app.state.bestTimes.all || time < app.state.bestTimes.all) app.state.bestTimes.all = time;
                         }
@@ -652,113 +728,8 @@ const Engine = {
                 w.postMessage({ type: 'run', iters });
             });
         });
-    },
-
-    compileGPU: function(popSize, inSize, hidSize, outSize) {
-        if(!this.gpuInstance) return;
-        
-        // Fast Softsign Math replacing Math.exp to prevent NaN crashes
-        this.kernelIH = this.gpuInstance.createKernel(function(inputs, weights, biases, inSz) {
-            let sum = 0; for (let i = 0; i < inSz; i++) { sum += inputs[this.thread.y][i] * weights[this.thread.y][i][this.thread.x]; }
-            let v = sum + biases[this.thread.y][this.thread.x];
-            return v / (1.0 + Math.abs(v));
-        }).setOutput([hidSize, popSize]).setPipeline(true); 
-
-        this.kernelHO = this.gpuInstance.createKernel(function(hL, weights, biases, hidSz) {
-            let sum = 0; for (let i = 0; i < hidSz; i++) { sum += hL[this.thread.y][i] * weights[this.thread.y][i][this.thread.x]; }
-            let v = sum + biases[this.thread.y][this.thread.x];
-            return v / (1.0 + Math.abs(v));
-        }).setOutput([outSize, popSize]);
-    },
-
-    updateGPUData: function(cars) {
-        this.gpuData.wIH = cars.map(c => c.brain.weightsIH); this.gpuData.bH = cars.map(c => c.brain.biasH);
-        this.gpuData.wHO = cars.map(c => c.brain.weightsHO); this.gpuData.bO = cars.map(c => c.brain.biasO);
-    },
-
-    computeGPU: function(cars) {
-        if(!this.kernelIH || !this.kernelHO) return;
-        const inputs = cars.map(c => c.sensorsInputs);
-        try {
-            const hLTexture = this.kernelIH(inputs, this.gpuData.wIH, this.gpuData.bH, SENSOR_COUNT+2);
-            const outs = this.kernelHO(hLTexture, this.gpuData.wHO, this.gpuData.bO, app.state.hiddenLayers);
-            hLTexture.delete();
-            for(let i=0; i<cars.length; i++) cars[i].inputs = Array.from(outs[i]);
-        } catch(e) {} 
     }
 };
-
-// Main App Physics for GPU mode
-function updateCarGPU(car, walls, checkpoints, zones, config) {
-    if (car.crashed) return;
-    car.timeToLive--; car.framesAlive++;
-    if (car.timeToLive <= 0) { car.crashed = true; return; }
-
-    const prevX = car.x, prevY = car.y;
-    const steer = (car.inputs && !isNaN(car.inputs[0])) ? car.inputs[0] : 0;
-    const throttle = (car.inputs && !isNaN(car.inputs[1])) ? car.inputs[1] : 0;
-
-    const speedFactor = Math.min(car.speed / 4.0, 1.0); car.angle += steer * config.turnSpeed * (0.2 + 0.8 * speedFactor); 
-    const cosA = Math.cos(car.angle), sinA = Math.sin(car.angle); let vx = car.vx, vy = car.vy;
-
-    if (throttle > 0) { vx += cosA * throttle * config.acceleration; vy += sinA * throttle * config.acceleration; } else { vx *= 0.95; vy *= 0.95; }
-    const latVel = vx * (-sinA) + vy * cosA; let grip = config.grip; if(Math.abs(latVel) > 2.5) grip *= 0.8;
-    vx += (-sinA) * -latVel * grip; vy += cosA * -latVel * grip; vx *= 0.99; vy *= 0.99;
-    
-    const speed = Math.hypot(vx, vy); if(speed > config.maxSpeed) { const r = config.maxSpeed/speed; vx *= r; vy *= r; }
-    car.vx = vx; car.vy = vy; car.speed = speed; car.x += vx; car.y += vy;
-    car.fitness += (speed / config.maxSpeed) * 0.1;
-
-    if(car.x < -100 || car.x > CANVAS_WIDTH+100 || car.y < -100 || car.y > CANVAS_HEIGHT+100) { car.crashed = true; return; }
-
-    const totalSegs = checkpoints.length; let curSeg = checkpoints[car.nextCheckpointIndex]?.index || 0;
-    const validSegs = [ (curSeg - 2 + totalSegs) % totalSegs, (curSeg - 1 + totalSegs) % totalSegs, curSeg, (curSeg + 1) % totalSegs, (curSeg + 2) % totalSegs, (curSeg + 3) % totalSegs ];
-    const nearbyWalls = walls.filter(w => validSegs.includes(w.segmentIndex));
-    const hw = CAR_WIDTH/2, hh = CAR_HEIGHT/2;
-    const corners = [ {x: car.x + cosA*hw - sinA*hh, y: car.y + sinA*hw + cosA*hh}, {x: car.x + cosA*hw + sinA*hh, y: car.y + sinA*hw - cosA*hh}, {x: car.x - cosA*hw + sinA*hh, y: car.y - sinA*hw - cosA*hh}, {x: car.x - cosA*hw - sinA*hh, y: car.y - sinA*hw + cosA*hh} ];
-
-    for (let w of nearbyWalls) {
-        if (getIntersection({x:prevX, y:prevY}, {x:car.x, y:car.y}, w.p1, w.p2)) { car.crashed = true; car.fitness -= 50; return; }
-        for(let c=0; c<4; c++) if (getIntersection(corners[c], corners[(c+1)%4], w.p1, w.p2)) { car.crashed = true; car.fitness -= 50; return; }
-    }
-
-    let fitMult = 1.0;
-    for (let z of zones) {
-        if ((car.x-z.x)**2 + (car.y-z.y)**2 < z.radius**2) {
-            if (z.type === 'speed' && car.speed > config.maxSpeed * 0.7) car.fitness += 2.0; else if (z.type === 'precision') car.fitness += 2.0; else if (z.type === 'focus') fitMult = 3.0;
-        }
-    }
-
-    const nCP = checkpoints[car.nextCheckpointIndex];
-    if (nCP) {
-        const cx = (nCP.p1.x+nCP.p2.x)/2, cy = (nCP.p1.y+nCP.p2.y)/2;
-        if ((car.x-cx)**2 + (car.y-cy)**2 < 2500) { 
-             if (getIntersection({x:prevX, y:prevY}, {x:car.x, y:car.y}, nCP.p1, nCP.p2) || ((car.x-cx)**2+(car.y-cy)**2 < 400)) { 
-                car.checkpointsReached++; car.nextCheckpointIndex = (car.nextCheckpointIndex + 1) % checkpoints.length;
-                car.timeToLive += 150; if (car.timeToLive > 600) car.timeToLive = 600; car.fitness += 500 * fitMult; 
-                if (car.nextCheckpointIndex === 0 && checkpoints.length > 2) {
-                    car.completedLaps++; car.isLapFinished = true; car.lapTimes.push(car.framesAlive); car.fitness += 3000 * fitMult; 
-                }
-             }
-        }
-    }
-
-    car.sensors = [];
-    for (let i = 0; i < SENSOR_ANGLES.length; i++) {
-        let rA = car.angle + SENSOR_ANGLES[i]; let ex = car.x + Math.cos(rA) * SENSOR_LENGTH, ey = car.y + Math.sin(rA) * SENSOR_LENGTH;
-        let minOffset = 1;
-        for (let w of nearbyWalls) {
-             const touch = getIntersection({x:car.x,y:car.y}, {x:ex,y:ey}, w.p1, w.p2);
-             if (touch) minOffset = Math.min(minOffset, Math.sqrt((touch.x-car.x)**2 + (touch.y-car.y)**2) / SENSOR_LENGTH);
-        }
-        car.sensors.push(1 - minOffset);
-    }
-
-    const tX = (nCP.p1.x + nCP.p2.x)/2, tY = (nCP.p1.y + nCP.p2.y)/2;
-    let relAng = Math.atan2(tY - car.y, tX - car.x) - car.angle;
-    while(relAng > Math.PI) relAng -= 2*Math.PI; while(relAng < -Math.PI) relAng += 2*Math.PI;
-    car.sensorsInputs = [...car.sensors, car.speed / config.maxSpeed, relAng / Math.PI];
-}
 
 // --- Main Application ---
 const app = {
@@ -780,29 +751,30 @@ const app = {
         } catch (e) { console.error("Init Error:", e); location.reload(); }
     },
 
-    setEngine: function(mode) { Engine.setMode(mode); },
-
     resetTracks: function() {
         const cx = CANVAS_WIDTH/2, cy = CANVAS_HEIGHT/2;
         const poly = (s, r) => Array.from({length:s},(_,i)=>{const a=(Math.PI*2 * i)/s;return{x:cx+Math.cos(a)*r,y:cy+Math.sin(a)*r}});
 
-        this.state.tracks = [ // 1200 x 900
-    generateTrackFromPath("t1", "The Oval", poly(30, 350), 60),
-    generateTrackFromPath("t2", "Triangle", poly(3, 300), 70),
-    generateTrackFromPath("t3", "Square", [{x:60,y:60}, {x:1140,y:60}, {x:1140,y:840}, {x:60,y:840}], 60),
-    generateTrackFromPath("t4", "Hexagon", poly(6, 350), 60),
-    generateTrackFromPath("t5", "Complex City", [{x:100,y:800},{x:100,y:100},{x:400,y:100},{x:400,y:400},{x:800,y:400},{x:800,y:100},{x:1100,y:100},{x:1100,y:800},{x:800,y:800},{x:800,y:600},{x:400,y:600},{x:400,y:800}], 50),
-    generateTrackFromPath("t6", "Monza-ish", [{x:200,y:700},{x:500,y:650},{x:800,y:700},{x:1000,y:600},{x:1000,y:200},{x:800,y:100},{x:300,y:100},{x:200,y:300},{x:300,y:400},{x:200,y:500}], 50),
-    generateTrackFromPath("t7", "High Speed Ring", [{x:150,y:450}, {x:300,y:150}, {x:900,y:150}, {x:1050,y:450}, {x:900,y:750}, {x:300,y:750}], 60),
-    generateTrackFromPath("t8", "Monaco", [{x:100,y:800}, {x:1100,y:800}, {x:1100,y:100}, {x:600,y:100}, {x:600,y:400}, {x:200,y:400}, {x:200,y:200}, {x:100,y:200}], 35),
-    generateTrackFromPath("t9", "Infinity Loop", [{x:200,y:450},{x:200,y:200},{x:500,y:200},{x:700,y:700},{x:1000,y:700},{x:1000,y:450},{x:1000,y:200},{x:700,y:200},{x:500,y:700},{x:200,y:700}], 40),
-    generateTrackFromPath("t10", "The Paperclip", [{x:100,y:100}, {x:1100,y:100}, {x:1100,y:300}, {x:300,y:300}, {x:300,y:600}, {x:1100,y:600}, {x:1100,y:800}, {x:100,y:800}], 45),
-    generateTrackFromPath("t11", "Desert Serpent", [{x:100,y:450}, {x:300,y:150}, {x:500,y:450}, {x:700,y:650}, {x:900,y:450}, {x:1100,y:150}, {x:1100,y:750}, {x:100,y:750}], 50),
-    generateTrackFromPath("t12", "The Big M", [{x:100,y:800}, {x:100,y:100}, {x:600,y:500}, {x:1100,y:100}, {x:1100,y:800}, {x:900,y:800}, {x:900,y:400}, {x:600,y:700}, {x:300,y:400}, {x:300,y:800}], 55),
-    generateTrackFromPath("t13", "Pentagon", poly(5, 350), 65),
-    generateTrackFromPath("t14", "Octagon", poly(8, 380), 55),
-    generateTrackFromPath("t15", "The Twister", [{x:600,y:100}, {x:1000,y:200}, {x:900,y:500}, {x:1100,y:800}, {x:600,y:700}, {x:100,y:800}, {x:300,y:500}, {x:200,y:200}], 30)
-];
+        this.state.tracks = [ 
+            generateTrackFromPath("t1", "The Oval", poly(30, 350), 60),
+            generateTrackFromPath("t2", "Triangle", poly(3, 300), 70),
+            generateTrackFromPath("t3", "Square", [{x:80,y:80}, {x:1120,y:80}, {x:1120,y:820}, {x:80,y:820}], 60),
+            generateTrackFromPath("t4", "Hexagon", poly(6, 350), 60),
+            generateTrackFromPath("t5", "Complex City", [{x:100,y:800},{x:100,y:100},{x:400,y:100},{x:400,y:400},{x:800,y:400},{x:800,y:100},{x:1100,y:100},{x:1100,y:800},{x:800,y:800},{x:800,y:600},{x:400,y:600},{x:400,y:800}], 50),
+            generateTrackFromPath("t6", "Monza-ish", [{x:200,y:700},{x:500,y:650},{x:800,y:700},{x:1000,y:600},{x:1000,y:200},{x:800,y:100},{x:300,y:100},{x:200,y:300},{x:300,y:400},{x:200,y:500}], 50),
+            generateTrackFromPath("t7", "High Speed Ring", [{x:150,y:450},{x:300,y:150},{x:900,y:150},{x:1050,y:450},{x:900,y:750},{x:300,y:750}], 60),
+            generateTrackFromPath("t8", "Monaco", [{x:100,y:800},{x:1100,y:800},{x:1100,y:100},{x:600,y:100},{x:600,y:400},{x:200,y:400},{x:200,y:200},{x:100,y:200}], 35),
+            generateTrackFromPath("t9", "Paperclip+", [{x:100,y:100},{x:1100,y:100},{x:1100,y:350},{x:300,y:350},{x:300,y:550},{x:1100,y:550},{x:1100,y:800},{x:100,y:800},{x:100,y:550},{x:200,y:450},{x:100,y:350}], 45),
+            generateTrackFromPath("t10", "Desert Serpent", [{x:100,y:450},{x:300,y:150},{x:500,y:450},{x:700,y:650},{x:900,y:450},{x:1100,y:150},{x:1100,y:750},{x:100,y:750}], 50),
+            generateTrackFromPath("t11", "The Big M", [{x:100,y:800},{x:100,y:100},{x:600,y:500},{x:1100,y:100},{x:1100,y:800},{x:900,y:800},{x:900,y:400},{x:600,y:700},{x:300,y:400},{x:300,y:800}], 55),
+            generateTrackFromPath("t12", "Pentagon", poly(5, 350), 65),
+            generateTrackFromPath("t13", "Octagon", poly(8, 380), 55),
+            generateTrackFromPath("t14", "The Twister", [{x:600,y:100},{x:1000,y:200},{x:900,y:500},{x:1100,y:800},{x:600,y:700},{x:100,y:800},{x:300,y:500},{x:200,y:200}], 30),
+            generateTrackFromPath("t15", "The Snake", [{x:80,y:80},{x:1120,y:80},{x:1150,y:160},{x:1120,y:240},{x:80,y:240},{x:50,y:320},{x:80,y:400},{x:1120,y:400},{x:1150,y:480},{x:1120,y:560},{x:80,y:560},{x:50,y:640},{x:80,y:720},{x:1120,y:720},{x:1150,y:800},{x:80,y:820},{x:50,y:450}], 46),
+            generateTrackFromPath("t16", "The Crossover", [{x:150,y:450},{x:150,y:150},{x:550,y:150},{x:550,y:450},{x:650,y:450},{x:650,y:150},{x:1050,y:150},{x:1050,y:750},{x:650,y:750},{x:650,y:450},{x:550,y:450},{x:550,y:750},{x:150,y:750}], 48),
+            generateTrackFromPath("t17", "The Spiral", [{x:80,y:80},{x:1120,y:80},{x:1120,y:820},{x:80,y:820},{x:80,y:240},{x:960,y:240},{x:960,y:680},{x:240,y:680},{x:240,y:400},{x:800,y:400},{x:800,y:520},{x:380,y:520},{x:380,y:340},{x:80,y:340}], 40),
+            generateTrackFromPath("t18", "Figure Eight", (()=>{const pts=[];for(let i=0;i<60;i++){const t=Math.PI*2*i/60;pts.push({x:600+360*Math.sin(t),y:450+180*Math.sin(2*t)})}return pts})(), 50),
+        ];
         
         this.renderTrackList();
         this.switchTrack(0);
@@ -820,14 +792,12 @@ const app = {
             else { brain = Engine.createBrain(SENSOR_COUNT+2, this.state.hiddenLayers, 2); }
             newCars.push({
                 id: i, x: track.startPos.x, y: track.startPos.y, angle: track.startAngle, vx: 0, vy: 0, speed: 0, 
-                color: `hsl(${Math.random()*360},80%,60%)`, brain, fitness: 0, crashed: false, sensors: [], sensorsInputs: Array(SENSOR_COUNT+2).fill(0), inputs: [0,0], checkpointsReached: 0,
-                timeToLive: this.state.initialTTL, nextCheckpointIndex: 1, framesAlive: 0, lapTimes: [], completedLaps: 0, isLapFinished: false
+                color: `hsl(${Math.random()*360},80%,60%)`, brain, fitness: 0, crashed: false, sensors: Array(SENSOR_COUNT).fill(0), inputs: [0,0],
+                timeToLive: this.state.initialTTL, nextCheckpointIndex: 1, framesAlive: 0, lapTimes: [], completedLaps: 0, checkpointsReached: 0, isLapFinished: false
             });
         }
         this.state.cars = newCars; this.state.bestTimes.gen = null; 
         
-        Engine.compileGPU(this.state.populationSize, SENSOR_COUNT+2, this.state.hiddenLayers, 2);
-        Engine.updateGPUData(this.state.cars);
         Engine.updateWorkerCars(this.state.cars);
         this.updateUI();
     },
@@ -848,8 +818,8 @@ const app = {
             for(let k=0; k<Math.min(this.state.eliteClones, this.state.populationSize); k++) {
                 newCars.push({
                     id: k, x: track.startPos.x, y: track.startPos.y, angle: track.startAngle, vx: 0, vy: 0, speed: 0, color: k===0?'#22c55e':'#84cc16',
-                    brain: Engine.copyBrain(this.state.globalBest.brain), fitness: 0, crashed: false, sensors: [], sensorsInputs: Array(SENSOR_COUNT+2).fill(0), inputs: [0,0],
-                    timeToLive: this.state.initialTTL, nextCheckpointIndex: 1, framesAlive: 0, lapTimes: [], completedLaps: 0, isLapFinished: false
+                    brain: Engine.copyBrain(this.state.globalBest.brain), fitness: 0, crashed: false, sensors: Array(SENSOR_COUNT).fill(0), inputs: [0,0], 
+                    timeToLive: this.state.initialTTL, nextCheckpointIndex: 1, framesAlive: 0, lapTimes: [], completedLaps: 0, checkpointsReached: 0, isLapFinished: false
                 });
             }
         }
@@ -859,7 +829,6 @@ const app = {
             const p1 = sorted[Math.floor(Math.random() * parentPoolSize)]; 
             const p2 = sorted[Math.floor(Math.random() * parentPoolSize)];
             
-            // True Genetic Crossover
             const childBrain = Engine.createBrain(SENSOR_COUNT+2, this.state.hiddenLayers, 2);
             for(let j=0; j<childBrain.weightsIH.length; j++) {
                 for(let k=0; k<childBrain.weightsIH[j].length; k++) childBrain.weightsIH[j][k] = Math.random() < 0.5 ? p1.brain.weightsIH[j][k] : p2.brain.weightsIH[j][k];
@@ -867,58 +836,30 @@ const app = {
             for(let j=0; j<childBrain.weightsHO.length; j++) {
                 for(let k=0; k<childBrain.weightsHO[j].length; k++) childBrain.weightsHO[j][k] = Math.random() < 0.5 ? p1.brain.weightsHO[j][k] : p2.brain.weightsHO[j][k];
             }
-            childBrain.biasH = childBrain.biasH.map((v, i) => Math.random() < 0.5 ? p1.brain.biasH[i] : p2.brain.biasH[i]);
-            childBrain.biasO = childBrain.biasO.map((v, i) => Math.random() < 0.5 ? p1.brain.biasO[i] : p2.brain.biasO[i]);
+            childBrain.biasH = childBrain.biasH.map((v, idx) => Math.random() < 0.5 ? p1.brain.biasH[idx] : p2.brain.biasH[idx]);
+            childBrain.biasO = childBrain.biasO.map((v, idx) => Math.random() < 0.5 ? p1.brain.biasO[idx] : p2.brain.biasO[idx]);
 
             Engine.mutateBrain(childBrain, this.state.mutationRate);
             newCars.push({
                 id: i, x: track.startPos.x, y: track.startPos.y, angle: track.startAngle, vx: 0, vy: 0, speed: 0, color: `hsl(${Math.random()*360},80%,60%)`,
-                brain: childBrain, fitness: 0, crashed: false, sensors: [], sensorsInputs: Array(SENSOR_COUNT+2).fill(0), inputs: [0,0],
-                timeToLive: this.state.initialTTL, nextCheckpointIndex: 1, framesAlive: 0, lapTimes: [], completedLaps: 0, isLapFinished: false
+                brain: childBrain, fitness: 0, crashed: false, sensors: Array(SENSOR_COUNT).fill(0), inputs: [0,0], 
+                timeToLive: this.state.initialTTL, nextCheckpointIndex: 1, framesAlive: 0, lapTimes: [], completedLaps: 0, checkpointsReached: 0, isLapFinished: false
             });
         }
         this.state.cars = newCars; this.state.generation++; this.state.bestTimes.gen = null; 
         
-        Engine.updateGPUData(this.state.cars);
         Engine.updateWorkerCars(this.state.cars);
         this.updateUI();
     },
 
     loop: async function() {
         if(this.state.isRunning && !this.state.isEditing) {
-            const limit = this.state.hyperMode ? 40 : 16; 
             const iters = this.state.hyperMode ? 500 : this.state.speedMultiplier;
-            const t = this.currentTrack;
-
-            if (Engine.mode === 'CPU') {
-                const result = await Engine.runCPUWorkers(iters);
-                if(result.triggerEvolve) this.evolve();
-
-            } else {
-                const st = performance.now();
-                let maxLaps = 0; let allCrashed = true;
-                for(let i=0; i<iters; i++) {
-                    if (i > 0 && performance.now() - st > limit) break;
-                    Engine.computeGPU(this.state.cars);
-                    allCrashed = true;
-                    for (let c of this.state.cars) {
-                        updateCarGPU(c, t.walls, t.checkpoints, t.zones, this.state.physics);
-                        if(!c.crashed) {
-                            allCrashed = false;
-                            if(c.completedLaps > maxLaps) maxLaps = c.completedLaps;
-                            if(c.isLapFinished) {
-                                const time = (c.lapTimes[c.lapTimes.length-1] - (c.lapTimes[c.lapTimes.length-2]||0)) / 60;
-                                if(!this.state.bestTimes.gen || time < this.state.bestTimes.gen) this.state.bestTimes.gen = time;
-                                if(!this.state.bestTimes.all || time < this.state.bestTimes.all) this.state.bestTimes.all = time;
-                                c.isLapFinished = false; this.updateUI();
-                            }
-                        }
-                    }
-                    if(allCrashed || maxLaps >= this.state.targetLaps) { this.evolve(); break; }
-                }
-            }
+            const result = await Engine.runCPUWorkers(iters);
+            if(result.triggerEvolve) this.evolve();
         }
         
+        this.updateUI(); 
         this.draw(); 
         requestAnimationFrame(this.loop.bind(this));
     },
@@ -941,13 +882,18 @@ const app = {
              }
         }
         
-        t.zones.forEach(z => { ctx.beginPath(); ctx.arc(z.x, z.y, z.radius, 0, Math.PI*2); ctx.fillStyle = z.type==='speed'?'rgba(239,68,68,0.3)':(z.type==='precision'?'rgba(59,130,246,0.3)':'rgba(168,85,247,0.3)'); ctx.fill(); });
+        t.zones.forEach(z => { 
+            ctx.beginPath(); ctx.arc(z.x, z.y, z.radius, 0, Math.PI*2); 
+            ctx.fillStyle = z.type==='speed'?'rgba(239,68,68,0.3)':'rgba(59,130,246,0.3)'; 
+            ctx.fill(); 
+            ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(z.type==='speed'?'SPEED BOOST':'POINTS', z.x, z.y);
+        });
 
         ctx.lineCap = 'round';
         ctx.strokeStyle='#e2e8f0'; ctx.lineWidth=4; ctx.beginPath(); t.walls.forEach(w => { ctx.moveTo(w.p1.x, w.p1.y); ctx.lineTo(w.p2.x, w.p2.y); }); ctx.stroke();
         ctx.strokeStyle='#ef4444'; ctx.lineWidth=4; ctx.setLineDash([15,15]); ctx.beginPath(); t.walls.forEach(w => { ctx.moveTo(w.p1.x, w.p1.y); ctx.lineTo(w.p2.x, w.p2.y); }); ctx.stroke(); ctx.setLineDash([]);
 
-        if(t.decorations) t.decorations.forEach(d => { ctx.save(); ctx.translate(d.x, d.y); ctx.font = "24px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(d.type === 'tree'?"🌲":(d.type === 'rock'?"🪨":"💧"), 0, 0); ctx.restore(); });
         if(t.checkpoints.length > 0) { const cp = t.checkpoints[0]; ctx.strokeStyle='#ffffff'; ctx.lineWidth=6; ctx.beginPath(); ctx.moveTo(cp.p1.x, cp.p1.y); ctx.lineTo(cp.p2.x, cp.p2.y); ctx.stroke(); ctx.setLineDash([6,6]); ctx.strokeStyle='#000'; ctx.stroke(); ctx.setLineDash([]); }
     },
 
@@ -963,8 +909,7 @@ const app = {
         if(this.state.bgCanvas) ctx.drawImage(this.state.bgCanvas, 0, 0);
 
         if(!this.state.hyperMode) {
-            // Draw optimization: Culling the render to max 50 top cars out of 200/500 population 
-            let draws = this.state.cars.length > 50 ? [...this.state.cars].sort((a,b)=>b.fitness-a.fitness).slice(0,50) : this.state.cars;
+            // Render ALL cars persistently, no color flashing, no hiding
             const best = this.state.cars.reduce((p,c) => (c.fitness > p.fitness && !c.crashed ? c : p), this.state.cars[0]);
             
             if(best && !best.crashed) {
@@ -977,21 +922,22 @@ const app = {
                 document.getElementById('tel-speed-val').innerText = Math.round(best.speed);
             }
 
-            draws.forEach(c => {
+            this.state.cars.forEach(c => {
                 if(c.crashed) return;
-                const isB = c === best;
-                ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(c.angle); ctx.scale(1.5,1.5); ctx.globalAlpha = isB?1:0.5;
-                ctx.fillStyle=isB?'#ffffff':c.color; ctx.fillRect(-7, -4, 14, 8);
+                ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(c.angle); ctx.scale(1.5,1.5);
+                ctx.globalAlpha = 1.0; // Everyone is solid opacity
+                ctx.fillStyle = c.color; // Native assigned color
+                ctx.fillRect(-7, -4, 14, 8);
                 ctx.fillStyle='#0f172a'; ctx.fillRect(-2, -3, 4, 6);
                 ctx.fillStyle='#fbbf24'; ctx.fillRect(6, -3, 1, 2); ctx.fillRect(6, 1, 1, 2);
                 ctx.restore();
 
-                if(isB) {
-                    ctx.globalAlpha=1;
+                // Draw sensors only for the secret "best" car to not clutter the screen
+                if(c === best) {
                     if(c.sensors) {
                         c.sensors.forEach((s,k) => {
                             const ang = c.angle + SENSOR_ANGLES[k];
-                            ctx.strokeStyle='rgba(234,179,8,0.2)'; ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(c.x+Math.cos(ang)*SENSOR_LENGTH, c.y+Math.sin(ang)*SENSOR_LENGTH); ctx.stroke();
+                            ctx.strokeStyle='rgba(234,179,8,0.3)'; ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(c.x+Math.cos(ang)*SENSOR_LENGTH, c.y+Math.sin(ang)*SENSOR_LENGTH); ctx.stroke();
                             if(s>0) { const d=(1-s)*SENSOR_LENGTH; ctx.fillStyle='#f59e0b'; ctx.beginPath(); ctx.arc(c.x+Math.cos(ang)*d, c.y+Math.sin(ang)*d, 2, 0, Math.PI*2); ctx.fill(); }
                         });
                     }
@@ -1002,11 +948,28 @@ const app = {
 
     toggleRun: function() { 
         this.state.isRunning = !this.state.isRunning; 
-        document.getElementById('btn-play').innerHTML = this.state.isRunning ? '<i data-lucide="pause" class="w-4 h-4"></i> <span>Pause</span>' : '<i data-lucide="play" class="w-4 h-4"></i> <span>Start</span>';
-        document.getElementById('btn-play').className = this.state.isRunning ? "flex-1 py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition-all bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500/30" : "flex-1 py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition-all bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 hover:bg-emerald-500/30";
+        const btn = document.getElementById('btn-play');
+        if (btn) {
+            const icon = this.state.isRunning ? 'pause' : 'play';
+            const txt = this.state.isRunning ? 'Pause' : 'Start';
+            btn.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4"></i> <span id="play-text">${txt}</span>`;
+            btn.className = this.state.isRunning 
+                ? "w-24 md:w-32 py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition-all bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500/30 text-sm" 
+                : "w-24 md:w-32 py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition-all bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 hover:bg-emerald-500/30 text-sm";
+        }
         if(window.lucide) lucide.createIcons();
     },
-    toggleHyper: function() { this.state.hyperMode = !this.state.hyperMode; document.getElementById('btn-hyper').classList.toggle('bg-yellow-500'); document.getElementById('btn-hyper').classList.toggle('text-slate-900'); document.getElementById('hyper-banner').classList.toggle('hidden'); },
+    toggleHyper: function() { 
+        this.state.hyperMode = !this.state.hyperMode; 
+        const btn = document.getElementById('btn-hyper');
+        if(btn) {
+            btn.classList.toggle('bg-yellow-500'); 
+            btn.classList.toggle('text-slate-900'); 
+            btn.classList.toggle('bg-slate-700');
+            btn.classList.toggle('text-slate-400');
+        }
+        document.getElementById('hyper-banner').classList.toggle('hidden'); 
+    },
 
     reset: function() { 
         this.state.isRunning=false; this.state.generation=1; this.state.stats=[]; this.state.bestTimes={gen:null,all:null}; this.initPopulation(); 
@@ -1020,10 +983,6 @@ const app = {
         let id = 'val-'+(k==='populationSize'?'pop':k==='targetLaps'?'laps':k==='speedMultiplier'?'speed':k==='eliteClones'?'elite':k==='mutationRate'?'mut':k==='hiddenLayers'?'hidden':'ttl');
         let d = v; if(k==='speedMultiplier') d+='x'; if(k==='mutationRate') d=Math.round(v*100)+'%';
         const el = document.getElementById(id); if(el) el.innerText = d; 
-        if(k === 'populationSize' || k === 'hiddenLayers') {
-            Engine.compileGPU(this.state.populationSize, SENSOR_COUNT+2, this.state.hiddenLayers, 2);
-            Engine.updateGPUData(this.state.cars);
-        }
     },
 
     showInfo: function(k) {
@@ -1033,8 +992,15 @@ const app = {
     },
 
     updateUI: function() {
-        document.getElementById('stat-generation').innerText = this.state.generation;
-        document.getElementById('stat-alive').innerText = this.state.cars.filter(c=>!c.crashed).length;
+        const gen = this.state.generation;
+        const alive = this.state.cars.filter(c=>!c.crashed).length;
+        
+        document.getElementById('stat-generation').innerText = gen;
+        document.getElementById('stat-alive').innerText = alive;
+        
+        const gMain = document.getElementById('stat-generation-main'); if(gMain) gMain.innerText = gen;
+        const aMain = document.getElementById('stat-alive-main'); if(aMain) aMain.innerText = alive;
+
         document.getElementById('stat-gen-best').innerText = this.state.bestTimes.gen ? this.state.bestTimes.gen.toFixed(2)+'s' : '--';
         document.getElementById('stat-all-best').innerText = this.state.bestTimes.all ? this.state.bestTimes.all.toFixed(2)+'s' : '--';
     },
@@ -1053,23 +1019,33 @@ const app = {
         Engine.updateWorkerTrack(t, this.state.physics);
         this.initPopulation(); 
         this.updateUI();
+        
+        const btn = document.getElementById('btn-play');
+        if(btn) {
+             btn.innerHTML = `<i data-lucide="play" class="w-4 h-4"></i> <span id="play-text">Start</span>`;
+             btn.className = "w-24 md:w-32 py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition-all bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 hover:bg-emerald-500/30 text-sm";
+        }
+        if(window.lucide) lucide.createIcons();
     },
 
     createNewTrack: function() { 
-        const t = generateTrackFromPath("custom"+Date.now(), "New Track", [{x:200,y:200},{x:400,y:200},{x:400,y:400},{x:200,y:400}], 60); 
+        const t = generateTrackFromPath("custom"+Date.now(), "New Track", [{x:200,y:200},{x:1000,y:200},{x:1000,y:700},{x:200,y:700}], 60); 
         this.state.isEditing = true; this.state.trackToEdit = t; editor.init(t); this.state.isRunning = false; 
         document.getElementById('editor-controls').classList.remove('hidden'); 
-        document.getElementById('engine-status').classList.add('hidden');
+        closeSidebar();
     },
     editTrack: function() { 
         this.state.isEditing = true; this.state.trackToEdit = JSON.parse(JSON.stringify(this.currentTrack)); 
         editor.init(this.state.trackToEdit); this.state.isRunning = false; 
         document.getElementById('editor-controls').classList.remove('hidden'); 
-        document.getElementById('engine-status').classList.add('hidden');
+        closeSidebar();
     },
     saveTrack: function(t) { 
-        const idx = this.state.tracks.findIndex(tr => tr.id === t.id); if(idx !== -1) this.state.tracks[idx] = t; else { this.state.tracks.push(t); this.state.currentTrackIndex = this.state.tracks.length-1; } 
-        this.state.isEditing = false; document.getElementById('editor-controls').classList.add('hidden'); document.getElementById('engine-status').classList.remove('hidden');
+        const idx = this.state.tracks.findIndex(tr => tr.id === t.id); 
+        if(idx !== -1) this.state.tracks[idx] = t; 
+        else { this.state.tracks.push(t); this.state.currentTrackIndex = this.state.tracks.length-1; } 
+        this.state.isEditing = false; 
+        document.getElementById('editor-controls').classList.add('hidden'); 
         this.switchTrack(this.state.currentTrackIndex); this.renderTrackList(); 
     },
     deleteTrack: function() { if(confirm("Delete this track?")) { if(this.state.tracks.length > 1) { this.state.tracks.splice(this.state.currentTrackIndex, 1); this.switchTrack(0); this.renderTrackList(); } else alert("Cannot delete last track."); } },
@@ -1128,7 +1104,7 @@ const app = {
 
 // --- Mobile/Desktop Track Editor ---
 const editor = {
-    track: null, mode: 'path', dragIndex: null, hoverIndex: null, isDraggingStart: false, isRotatingStart: false, isResizingZone: false, selectedZone: null, selectedDecor: null,
+    track: null, mode: 'path', dragIndex: null, hoverIndex: null, isDraggingStart: false, isResizingZone: false, selectedZone: null, selectedIndex: null,
 
     init: function(t) { 
         this.track = t; document.getElementById('edit-name').value = t.name; document.getElementById('edit-width').value = t.trackWidth; document.getElementById('edit-angle').value = Math.round((t.startAngle || 0) * (180/Math.PI)); this.setMode('path');
@@ -1136,55 +1112,87 @@ const editor = {
         c.style.touchAction = 'none';
         c.onpointerdown = e => { e.preventDefault(); c.setPointerCapture(e.pointerId); this.onDown(e); };
         c.onpointermove = e => { e.preventDefault(); this.onMove(e); };
-        c.onpointerup = c.onpointercancel = e => { c.releasePointerCapture(e.pointerId); this.dragIndex=null; this.isDraggingStart=false; this.isRotatingStart=false; this.isResizingZone=false; };
+        c.onpointerup = c.onpointercancel = e => { c.releasePointerCapture(e.pointerId); this.dragIndex=null; this.isDraggingStart=false; this.isResizingZone=false; };
     },
 
     setMode: function(m) {
-        this.mode = m; this.selectedZone = null; this.selectedDecor = null;
-        ['path','zones','decor'].forEach(x => { document.getElementById('btn-mode-'+x).className = m===x?'px-2 py-1 text-xs rounded flex items-center gap-1 bg-blue-600 text-white':'px-2 py-1 text-xs rounded flex items-center gap-1 text-slate-400'; document.getElementById(x+'-tools').style.display = m===x?'flex':'none'; });
+        this.mode = m; this.selectedZone = null; this.selectedIndex = null; document.getElementById('btn-del-point').classList.add('hidden');
+        ['path','zones'].forEach(x => { document.getElementById('btn-mode-'+x).className = m===x?'px-2 py-1 text-xs rounded flex items-center gap-1 bg-blue-600 text-white':'px-2 py-1 text-xs rounded flex items-center gap-1 text-slate-400'; document.getElementById(x+'-tools').style.display = m===x?'flex':'none'; });
         document.getElementById('sim-canvas').style.cursor = 'default';
     },
 
-    save: function() { this.track.name = document.getElementById('edit-name').value; app.saveTrack(generateTrackFromPath(this.track.id, this.track.name, this.track.path, this.track.trackWidth, this.track.startPos, this.track.startAngle, this.track.zones, this.track.difficulty, this.track.decorations)); },
-    cancel: function() { app.state.isEditing = false; document.getElementById('editor-controls').classList.add('hidden'); document.getElementById('engine-status').classList.remove('hidden'); },
+    save: function() { 
+        const name = document.getElementById('edit-name').value || 'Custom Track';
+        this.track.name = name;
+        const t = generateTrackFromPath(this.track.id, this.track.name, this.track.path, this.track.trackWidth, this.track.startPos, this.track.startAngle, this.track.zones);
+        app.saveTrack(t);
+        const pathStr = JSON.stringify(this.track.path).replace(/{"x":/g,'{ x:').replace(/,"y":/g,', y:').replace(/}/g,'}');
+        const zonesStr = this.track.zones && this.track.zones.length ? `, ${JSON.stringify(this.track.zones)}` : '';
+        const code = `generateTrackFromPath("${this.track.id}", "${name}", ${pathStr}, ${this.track.trackWidth}${zonesStr}),`;
+        document.getElementById('code-output').value = code;
+        document.getElementById('code-modal').classList.remove('hidden');
+        if(window.lucide) lucide.createIcons();
+    },
+    cancel: function() { 
+        app.state.isEditing = false; 
+        document.getElementById('editor-controls').classList.add('hidden'); 
+        const cv = document.getElementById('sim-canvas'); cv.onpointerdown = null; cv.onpointermove = null; cv.onpointerup = null; cv.onpointercancel = null;
+    },
     updateWidth: function(v) { this.track.trackWidth = parseInt(v); }, updateAngle: function(v) { this.track.startAngle = parseFloat(v) * (Math.PI/180); },
-    addZone: function(type) { const z = { id:Date.now().toString(), x:CANVAS_WIDTH/2, y:CANVAS_HEIGHT/2, radius:50, type }; this.track.zones.push(z); this.selectedZone = z; },
+    addZone: function(type) { const z = { id:Date.now().toString(), x:CANVAS_WIDTH/2, y:CANVAS_HEIGHT/2, radius:80, type }; this.track.zones.push(z); this.selectedZone = z; },
     deleteZone: function() { if(this.selectedZone) this.track.zones = this.track.zones.filter(z => z !== this.selectedZone); this.selectedZone = null; },
-    addDecor: function(type) { if(!this.track.decorations) this.track.decorations = []; const d = { id:Date.now().toString(), x:CANVAS_WIDTH/2, y:CANVAS_HEIGHT/2, type }; this.track.decorations.push(d); this.selectedDecor = d; },
-    deleteDecor: function() { if(this.selectedDecor && this.track.decorations) this.track.decorations = this.track.decorations.filter(d => d !== this.selectedDecor); this.selectedDecor = null; },
+    deleteSelectedPoint: function() {
+        if(this.selectedIndex !== null && this.track.path.length > 3) {
+            this.track.path.splice(this.selectedIndex, 1);
+            this.selectedIndex = null;
+            document.getElementById('btn-del-point').classList.add('hidden');
+        }
+    },
 
     getPos: function(e) { const r = document.getElementById('sim-canvas').getBoundingClientRect(); return { x: (e.clientX-r.left)*(CANVAS_WIDTH/r.width), y: (e.clientY-r.top)*(CANVAS_HEIGHT/r.height) }; },
 
     onDown: function(e) {
         const {x,y} = this.getPos(e);
-        if (this.mode === 'decor') { if(this.track.decorations) this.selectedDecor = [...this.track.decorations].reverse().find(d => Math.hypot(d.x-x, d.y-y) < 30) || null; return; }
+        
         if (this.mode === 'zones') {
-            if(this.selectedZone && Math.hypot(x-(this.selectedZone.x+this.selectedZone.radius), y-this.selectedZone.y) < 15) { this.isResizingZone = true; return; }
+            if(this.selectedZone && Math.hypot(x-(this.selectedZone.x+this.selectedZone.radius), y-this.selectedZone.y) < 30) { this.isResizingZone = true; return; }
             this.selectedZone = [...this.track.zones].reverse().find(z => Math.hypot(z.x-x, z.y-y) < z.radius) || null; return;
         }
         
         if(Math.hypot(x - this.track.startPos.x, y - this.track.startPos.y) < 30) { this.isDraggingStart = true; return; }
-        const idx = this.track.path.findIndex(p => Math.hypot(p.x-x, p.y-y)<20);
-        if(idx !== -1) { if(e.shiftKey && this.track.path.length>2) this.track.path.splice(idx,1); else this.dragIndex = idx; } 
-        else {
-            let bI = -1, mD = 20;
-            for(let i=0; i<this.track.path.length; i++) {
-                const p1 = this.track.path[i], p2 = this.track.path[(i+1)%this.track.path.length];
-                const l2 = (p1.x-p2.x)**2+(p1.y-p2.y)**2; if(l2===0) continue;
-                const t = Math.max(0, Math.min(1, ((x-p1.x)*(p2.x-p1.x)+(y-p1.y)*(p2.y-p1.y))/l2));
-                const d = Math.hypot(x-(p1.x+t*(p2.x-p1.x)), y-(p1.y+t*(p2.y-p1.y)));
-                if(d<mD) { mD=d; bI=i; }
-            }
-            if(bI !== -1) { this.track.path.splice(bI+1, 0, {x,y}); this.dragIndex = bI+1; }
+        
+        const idx = this.track.path.findIndex(p => Math.hypot(p.x-x, p.y-y) < 40);
+        if(idx !== -1) { 
+            this.selectedIndex = idx;
+            this.dragIndex = idx;
+            document.getElementById('btn-del-point').classList.remove('hidden');
+            return;
+        } 
+        
+        let bI = -1, mD = 40;
+        for(let i=0; i<this.track.path.length; i++) {
+            const p1 = this.track.path[i], p2 = this.track.path[(i+1)%this.track.path.length];
+            const l2 = (p1.x-p2.x)**2+(p1.y-p2.y)**2; if(l2===0) continue;
+            const t = Math.max(0, Math.min(1, ((x-p1.x)*(p2.x-p1.x)+(y-p1.y)*(p2.y-p1.y))/l2));
+            const d = Math.hypot(x-(p1.x+t*(p2.x-p1.x)), y-(p1.y+t*(p2.y-p1.y)));
+            if(d<mD) { mD=d; bI=i; }
+        }
+        if(bI !== -1) { 
+            this.track.path.splice(bI+1, 0, {x,y}); 
+            this.dragIndex = bI+1; 
+            this.selectedIndex = bI+1;
+            document.getElementById('btn-del-point').classList.remove('hidden');
+        } else {
+            this.selectedIndex = null;
+            document.getElementById('btn-del-point').classList.add('hidden');
         }
     },
 
     onMove: function(e) {
         const {x,y} = this.getPos(e);
-        if(this.mode === 'decor') { if(this.selectedDecor && (e.buttons === 1 || e.type==="touchmove")) { this.selectedDecor.x = x; this.selectedDecor.y = y; } return; }
         if(this.mode === 'zones') {
             if(this.selectedZone && (e.buttons === 1 || e.type==="touchmove")) {
-                if(this.isResizingZone) this.selectedZone.radius = Math.max(20, Math.hypot(x - this.selectedZone.x, y - this.selectedZone.y)); 
+                if(this.isResizingZone) this.selectedZone.radius = Math.max(30, Math.hypot(x - this.selectedZone.x, y - this.selectedZone.y)); 
                 else { this.selectedZone.x = x; this.selectedZone.y = y; }
             } return;
         }
@@ -1194,7 +1202,7 @@ const editor = {
     },
 
     draw: function(ctx) {
-        const p = generateTrackFromPath(this.track.id, this.track.name, this.track.path, this.track.trackWidth, this.track.startPos, this.track.startAngle, this.track.zones, this.track.difficulty, this.track.decorations);
+        const p = generateTrackFromPath(this.track.id, this.track.name, this.track.path, this.track.trackWidth, this.track.startPos, this.track.startAngle, this.track.zones);
         if (p.leftPoly && p.rightPoly) {
              ctx.fillStyle = '#343a40';
              for(let i=0; i<p.leftPoly.length; i++) {
@@ -1205,25 +1213,29 @@ const editor = {
         ctx.strokeStyle='#334155'; ctx.lineWidth=4; ctx.beginPath(); p.walls.forEach(w => { ctx.moveTo(w.p1.x, w.p1.y); ctx.lineTo(w.p2.x, w.p2.y); }); ctx.stroke();
         ctx.strokeStyle='#38bdf8'; ctx.lineWidth=2; ctx.beginPath(); p.checkpoints.forEach(cp => { ctx.moveTo(cp.p1.x, cp.p1.y); ctx.lineTo(cp.p2.x, cp.p2.y); }); ctx.stroke();
         
-        if(p.decorations) p.decorations.forEach(d => {
-            ctx.save(); ctx.translate(d.x, d.y);
-            if(d === this.selectedDecor) { ctx.beginPath(); ctx.arc(0,0,25,0,Math.PI*2); ctx.fillStyle='rgba(255,255,255,0.2)'; ctx.fill(); ctx.strokeStyle='#fff'; ctx.stroke(); }
-            ctx.font = "24px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(d.type === 'tree'?"🌲":(d.type === 'rock'?"🪨":"💧"), 0, 0); ctx.restore();
-        });
-
         p.zones.forEach(z => {
             ctx.beginPath(); ctx.arc(z.x, z.y, z.radius, 0, Math.PI*2);
-            ctx.fillStyle = z.type==='speed'?'rgba(239,68,68,0.2)':(z.type==='precision'?'rgba(59,130,246,0.2)':'rgba(168,85,247,0.2)');
-            ctx.fill(); ctx.lineWidth = z===this.selectedZone?3:1; ctx.strokeStyle = z===this.selectedZone?'#fff':(z.type==='speed'?'#ef4444':z.type==='precision'?'#3b82f6':'#a855f7');
+            ctx.fillStyle = z.type==='speed'?'rgba(239,68,68,0.2)':'rgba(59,130,246,0.2)';
+            ctx.fill(); 
+            ctx.lineWidth = z===this.selectedZone?3:1; ctx.strokeStyle = z===this.selectedZone?'#fff':(z.type==='speed'?'#ef4444':'#3b82f6');
             if(z===this.selectedZone) ctx.setLineDash([5,5]); ctx.stroke(); ctx.setLineDash([]);
-            if (z===this.selectedZone) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(z.x+z.radius, z.y, 6, 0, Math.PI*2); ctx.fill(); ctx.strokeStyle='#000'; ctx.lineWidth=1; ctx.stroke(); }
+            
+            ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(z.type==='speed'?'SPEED BOOST':'POINTS', z.x, z.y);
+
+            // Resize handle
+            if (z===this.selectedZone) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(z.x+z.radius, z.y, 8, 0, Math.PI*2); ctx.fill(); ctx.strokeStyle='#000'; ctx.lineWidth=2; ctx.stroke(); }
         });
 
         if(this.mode === 'path') {
             ctx.strokeStyle='#3b82f6'; ctx.lineWidth=2; ctx.setLineDash([5,5]); ctx.beginPath();
             if(this.track.path.length>0) { ctx.moveTo(this.track.path[0].x, this.track.path[0].y); for(let i=1; i<this.track.path.length; i++) ctx.lineTo(this.track.path[i].x, this.track.path[i].y); if(this.track.path.length>2) ctx.lineTo(this.track.path[0].x, this.track.path[0].y); }
             ctx.stroke(); ctx.setLineDash([]);
-            this.track.path.forEach((p, i) => { ctx.fillStyle = i===0?'#22c55e':(i===this.hoverIndex?'#fbbf24':'#60a5fa'); ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI*2); ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke(); });
+            
+            this.track.path.forEach((p, i) => { 
+                ctx.fillStyle = i===0?'#22c55e':(i===this.selectedIndex?'#ef4444':(i===this.hoverIndex?'#fbbf24':'#60a5fa')); 
+                ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI*2); ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke(); 
+            });
 
             ctx.save(); ctx.translate(p.startPos.x, p.startPos.y); ctx.rotate(p.startAngle); ctx.fillStyle='rgba(34,197,94,0.5)'; ctx.fillRect(-10,-5,20,10); ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(-5, 0); ctx.lineTo(5, 0); ctx.lineTo(2, -3); ctx.moveTo(5, 0); ctx.lineTo(2, 3); ctx.stroke(); ctx.restore();
             ctx.fillStyle = this.isDraggingStart ? '#fff' : '#22c55e'; ctx.beginPath(); ctx.arc(p.startPos.x, p.startPos.y, 10, 0, Math.PI*2); ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth=2; ctx.stroke();
@@ -1232,7 +1244,19 @@ const editor = {
 };
 
 window.onload = () => app.init();
+
+function openSidebar() {
+    document.getElementById('sidebar').classList.add('open');
+    document.getElementById('sidebar-overlay').classList.add('show');
+}
+function closeSidebar() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebar-overlay').classList.remove('show');
+}
+document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('sidebar-close-btn');
+    if(btn) btn.onclick = closeSidebar;
+});
 </script>
-<script type="module" src="/index.tsx"></script>
 </body>
 </html>
