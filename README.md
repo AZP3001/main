@@ -35,6 +35,3 @@ Fine-tune the simulation and the learning process using the built-in settings.
 ### Simulation Control
 * **Simulation Speed:** Adjust the simulation speed.
 * **Hyper Mode:** Simulates as fast as your PC allows. (Doesn't render for even faster Processing)
-
----
-*Developed by [AZP3001](https://github.com/AZP3001)*
