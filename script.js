@@ -449,7 +449,7 @@ const app = {
             generateTrackFromPath("t16", "The Crossover", [{x:150,y:450},{x:150,y:150},{x:550,y:150},{x:550,y:450},{x:650,y:450},{x:650,y:150},{x:1050,y:150},{x:1050,y:750},{x:650,y:750},{x:650,y:450},{x:550,y:450},{x:550,y:750},{x:150,y:750}], 48),
             generateTrackFromPath("t17", "The Spiral", [{x:80,y:80},{x:1120,y:80},{x:1120,y:820},{x:80,y:820},{x:80,y:240},{x:960,y:240},{x:960,y:680},{x:240,y:680},{x:240,y:400},{x:800,y:400},{x:800,y:520},{x:380,y:520},{x:380,y:340},{x:80,y:340}], 40),
             generateTrackFromPath("t18", "Figure Eight", (()=>{const pts=[];for(let i=0;i<60;i++){const t=Math.PI*2*i/60;pts.push({x:600+360*Math.sin(t),y:450+180*Math.sin(2*t)})}return pts})(), 50),
-            generateTrackFromPath("t19", "Thin Eight", (()=>{const pts=[];for(let i=0;i<60;i++){const t=Math.PI*2*i/60;pts.push({x:600+360*Math.sin(t),y:450+180*Math.sin(2*t)})}return pts})(), 20),
+            generateTrackFromPath("t19", "Thin Eight", (()=>{const pts=[];for(let i=0;i<60;i++){const t=Math.PI*2*i/60;pts.push({x:600+360*Math.sin(t),y:450+180*Math.sin(2*t)})}return pts})(), 10),
         ];
         
         this.renderTrackList();
