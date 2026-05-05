@@ -203,13 +203,16 @@
         
         <!-- CONTROL BAR -->
         <div class="flex items-center gap-3 bg-slate-800 p-2 md:p-3 rounded-xl border border-slate-700 shrink-0 shadow-lg z-10">
-            <!-- Start/Hyper: mobile only (desktop has them in sidebar) -->
+            <!-- Start/Hyper/Reset: mobile only (desktop has them in sidebar) -->
             <div class="flex items-center gap-2 lg:hidden">
                 <button id="btn-play-m" onclick="app.toggleRun()" class="px-3 py-2 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all border text-sm bg-emerald-500/20 text-emerald-400 border-emerald-500/50 hover:bg-emerald-500/30">
                     <i data-lucide="play" class="w-4 h-4"></i> <span>Start</span>
                 </button>
                 <button id="btn-hyper-m" onclick="app.toggleHyper()" class="p-2 rounded-lg flex items-center justify-center transition-all border bg-slate-700 text-slate-400 border-slate-600 hover:text-yellow-400" title="Hyper Mode">
                     <i data-lucide="zap" class="w-4 h-4"></i>
+                </button>
+                <button onclick="app.reset()" class="p-2 rounded-lg flex items-center justify-center transition-all border bg-slate-700 text-slate-400 border-slate-600 hover:text-white" title="Reset">
+                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
                 </button>
                 <div class="w-px h-8 bg-slate-700"></div>
             </div>
