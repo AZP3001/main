@@ -6,6 +6,15 @@ const SENSOR_LENGTH = 180;
 const SENSOR_ANGLES = [-Math.PI/2, -Math.PI/3, -Math.PI/6, 0, Math.PI/6, Math.PI/3, Math.PI/2];
 const SENSOR_COUNT = SENSOR_ANGLES.length;
 
+// Inline SVGs — avoids calling lucide.createIcons() on every toggle
+const SVG_PLAY = `<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+const SVG_PAUSE = `<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`;
+
+// Cached DOM references — populated once in _initUICache(), used everywhere else
+const ui = {};
+// Dirty-check values for updateUI — skip DOM writes if unchanged
+let _ui_gen = -1, _ui_alive = -1, _ui_allBest = null;
+
 const SETTING_DESCRIPTIONS = {
     speedMultiplier: "Simulation cycles per frame. High values train extremely fast.",
     populationSize: "Number of cars per generation. Scales perfectly via multi-threading.",
@@ -320,7 +329,9 @@ const Engine = {
 
     init: function() {
         this.coreCount = navigator.hardwareConcurrency || 4;
-        document.getElementById('core-count').innerHTML = `<i data-lucide="cpu" class="w-3 h-3"></i> ${this.coreCount} Cores Active`;
+        // ui cache isn't ready yet at Engine.init time, so store for later and
+        // set it again after _initUICache in app.init via a small defer
+        this._pendingCoreLabel = `<i data-lucide="cpu" class="w-3 h-3"></i> ${this.coreCount} Cores Active`;
         
         const blob = new Blob([workerScript], {type: 'application/javascript'});
         const url = URL.createObjectURL(blob);
@@ -391,6 +402,10 @@ const Engine = {
                             const time = buffer[idx+10];
                             if(!app.state.bestTimes.gen || time < app.state.bestTimes.gen) app.state.bestTimes.gen = time;
                             if(!app.state.bestTimes.all || time < app.state.bestTimes.all) app.state.bestTimes.all = time;
+                            // Track lap history for mobile display (keep last 20)
+                            app.state.lapHistory.push(time);
+                            if(app.state.lapHistory.length > 20) app.state.lapHistory.shift();
+                            app.updateLapHistory();
                         }
                     }
                     
@@ -413,7 +428,34 @@ const app = {
         physics: { maxSpeed: 10, acceleration: 0.05, turnSpeed: 0.04, grip: 0.93 },
         tracks: [], currentTrackIndex: 1, cars: [], generation: 1, isRunning: false, speedMultiplier: 1, hyperMode: false,
         stats: [], globalBest: null, bestTimes: { gen: null, all: null }, isEditing: false, trackToEdit: null,
-        bgCanvas: null
+        bgCanvas: null, lapHistory: []
+    },
+
+    _initUICache: function() {
+        const $ = id => document.getElementById(id);
+        ui.statGen     = $('stat-generation');
+        ui.statAlive   = $('stat-alive');
+        ui.statGenMain  = $('stat-generation-main');
+        ui.statAliveMain = $('stat-alive-main');
+        ui.statAllBest  = $('stat-all-best');
+        ui.statAllBestM = $('stat-all-best-m');
+        ui.lapHistoryM  = $('lap-history-m');
+        ui.telSteerL    = $('tel-steer-l');
+        ui.telSteerR    = $('tel-steer-r');
+        ui.telGas       = $('tel-gas');
+        ui.telBrake     = $('tel-brake');
+        ui.telSpeed     = $('tel-speed');
+        ui.telSpeedVal  = $('tel-speed-val');
+        ui.canvas       = $('sim-canvas');
+        ui.ctx          = ui.canvas.getContext('2d');
+        ui.btnPlay      = $('btn-play');
+        ui.btnHyper     = $('btn-hyper');
+        ui.btnPlayM     = $('btn-play-m');
+        ui.btnHyperM    = $('btn-hyper-m');
+        ui.hyperBanner  = $('hyper-banner');
+        ui.coreCount    = $('core-count');
+        // Apply the pending Engine core label now that the element is cached
+        if(ui.coreCount && Engine._pendingCoreLabel) ui.coreCount.innerHTML = Engine._pendingCoreLabel;
     },
 
     init: function() {
@@ -421,6 +463,7 @@ const app = {
             Engine.init();
             this.resetTracks(); 
             this.initChart();
+            this._initUICache();
             if(window.lucide) lucide.createIcons();
             this.loop();
         } catch (e) { console.error("Init Error:", e); location.reload(); }
@@ -574,7 +617,7 @@ const app = {
     },
 
     draw: function() {
-        const c = document.getElementById('sim-canvas'); const ctx = c.getContext('2d');
+        const ctx = ui.ctx; // cached — no getElementById every frame
         
         if(this.state.isEditing && this.state.trackToEdit) { 
             ctx.fillStyle = '#3a5a40'; ctx.fillRect(0,0,CANVAS_WIDTH,CANVAS_HEIGHT);
@@ -590,25 +633,24 @@ const app = {
             
             if(best && !best.crashed) {
                 const i = best.inputs || [0,0];
-                document.getElementById('tel-steer-l').style.width = i[0] < 0 ? Math.abs(i[0])*50 + '%' : '0%';
-                document.getElementById('tel-steer-r').style.width = i[0] > 0 ? i[0]*50 + '%' : '0%';
-                if(i[1] > 0) { document.getElementById('tel-gas').style.width = i[1]*100 + '%'; document.getElementById('tel-brake').style.width = '0%'; } 
-                else { document.getElementById('tel-gas').style.width = '0%'; document.getElementById('tel-brake').style.width = Math.abs(i[1])*100 + '%'; }
-                document.getElementById('tel-speed').style.width = Math.min((best.speed / this.state.physics.maxSpeed)*100, 100) + '%';
-                document.getElementById('tel-speed-val').innerText = Math.round(best.speed);
+                ui.telSteerL.style.width = i[0] < 0 ? Math.abs(i[0])*50 + '%' : '0%';
+                ui.telSteerR.style.width = i[0] > 0 ? i[0]*50 + '%' : '0%';
+                if(i[1] > 0) { ui.telGas.style.width = i[1]*100 + '%'; ui.telBrake.style.width = '0%'; } 
+                else { ui.telGas.style.width = '0%'; ui.telBrake.style.width = Math.abs(i[1])*100 + '%'; }
+                ui.telSpeed.style.width = Math.min((best.speed / this.state.physics.maxSpeed)*100, 100) + '%';
+                ui.telSpeedVal.textContent = Math.round(best.speed);
             }
 
             this.state.cars.forEach(c => {
                 if(c.crashed) return;
                 ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(c.angle); ctx.scale(1.5,1.5);
-                ctx.globalAlpha = 1.0; // Everyone is solid opacity
-                ctx.fillStyle = c.color; // Native assigned color
+                ctx.globalAlpha = 1.0;
+                ctx.fillStyle = c.color;
                 ctx.fillRect(-7, -4, 14, 8);
                 ctx.fillStyle='#0f172a'; ctx.fillRect(-2, -3, 4, 6);
                 ctx.fillStyle='#fbbf24'; ctx.fillRect(6, -3, 1, 2); ctx.fillRect(6, 1, 1, 2);
                 ctx.restore();
 
-                // Draw sensors only for the secret "best" car to not clutter the screen
                 if(c === best) {
                     if(c.sensors) {
                         c.sensors.forEach((s,k) => {
@@ -624,31 +666,45 @@ const app = {
 
     toggleRun: function() { 
         this.state.isRunning = !this.state.isRunning; 
-        const btn = document.getElementById('btn-play');
-        if (btn) {
-            const icon = this.state.isRunning ? 'pause' : 'play';
-            const txt = this.state.isRunning ? 'Pause' : 'Start';
-            btn.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4"></i> <span id="play-text">${txt}</span>`;
-            btn.className = this.state.isRunning 
-                ? "w-24 md:w-32 py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition-all bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500/30 text-sm" 
-                : "w-24 md:w-32 py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition-all bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 hover:bg-emerald-500/30 text-sm";
+        const running = this.state.isRunning;
+        const icon = running ? SVG_PAUSE : SVG_PLAY;
+        const txt = running ? 'Pause' : 'Start';
+        const clsBase = "rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all border text-sm ";
+        const clsOn  = clsBase + "px-3 py-2 bg-red-500/20 text-red-400 border-red-500/50 hover:bg-red-500/30";
+        const clsOff = clsBase + "px-3 py-2 bg-emerald-500/20 text-emerald-400 border-emerald-500/50 hover:bg-emerald-500/30";
+        // Desktop sidebar button
+        if(ui.btnPlay) { 
+            ui.btnPlay.innerHTML = `${icon} <span>${txt}</span>`; 
+            ui.btnPlay.className = (running ? clsOn : clsOff) + " flex-1 py-2";
         }
-        if(window.lucide) lucide.createIcons();
+        // Mobile control-bar button
+        if(ui.btnPlayM) { 
+            ui.btnPlayM.innerHTML = `${icon} <span>${txt}</span>`; 
+            ui.btnPlayM.className = running ? clsOn : clsOff;
+        }
+        // No lucide.createIcons() — inline SVGs don't need it
     },
     toggleHyper: function() { 
         this.state.hyperMode = !this.state.hyperMode; 
-        const btn = document.getElementById('btn-hyper');
-        if(btn) {
-            btn.classList.toggle('bg-yellow-500'); 
-            btn.classList.toggle('text-slate-900'); 
-            btn.classList.toggle('bg-slate-700');
-            btn.classList.toggle('text-slate-400');
-        }
-        document.getElementById('hyper-banner').classList.toggle('hidden'); 
+        const active = this.state.hyperMode;
+        [ui.btnHyper, ui.btnHyperM].forEach(btn => {
+            if(!btn) return;
+            btn.classList.toggle('bg-yellow-500', active); 
+            btn.classList.toggle('text-slate-900', active); 
+            btn.classList.toggle('bg-slate-700', !active);
+            btn.classList.toggle('text-slate-400', !active);
+            btn.classList.toggle('border-yellow-500', active);
+            btn.classList.toggle('border-slate-600', !active);
+        });
+        if(ui.hyperBanner) ui.hyperBanner.classList.toggle('hidden', !active);
     },
 
     reset: function() { 
-        this.state.isRunning=false; this.state.generation=1; this.state.stats=[]; this.state.bestTimes={gen:null,all:null}; this.initPopulation(); 
+        this.state.isRunning=false; this.state.generation=1; this.state.stats=[]; 
+        this.state.bestTimes={gen:null,all:null}; this.state.lapHistory=[];
+        _ui_gen=-1; _ui_alive=-1; _ui_allBest=null;
+        if(ui.lapHistoryM) ui.lapHistoryM.innerHTML = '<span class="text-[10px] text-slate-600 italic">No laps yet</span>';
+        this.initPopulation(); 
         if(this.chart) { this.chart.data.labels = []; this.chart.data.datasets.forEach(d => d.data = []); this.chart.update(); }
         this.updateUI(); this.toggleRun(); this.toggleRun(); 
     },
@@ -671,14 +727,35 @@ const app = {
         const gen = this.state.generation;
         const alive = this.state.cars.filter(c=>!c.crashed).length;
         
-        document.getElementById('stat-generation').innerText = gen;
-        document.getElementById('stat-alive').innerText = alive;
-        
-        const gMain = document.getElementById('stat-generation-main'); if(gMain) gMain.innerText = gen;
-        const aMain = document.getElementById('stat-alive-main'); if(aMain) aMain.innerText = alive;
+        // Only write to DOM if value changed (dirty check — huge win on ARM)
+        if(_ui_gen !== gen) {
+            if(ui.statGen) ui.statGen.textContent = gen;
+            if(ui.statGenMain) ui.statGenMain.textContent = gen;
+            _ui_gen = gen;
+        }
+        if(_ui_alive !== alive) {
+            if(ui.statAlive) ui.statAlive.textContent = alive;
+            if(ui.statAliveMain) ui.statAliveMain.textContent = alive;
+            _ui_alive = alive;
+        }
 
-        document.getElementById('stat-gen-best').innerText = this.state.bestTimes.gen ? this.state.bestTimes.gen.toFixed(2)+'s' : '--';
-        document.getElementById('stat-all-best').innerText = this.state.bestTimes.all ? this.state.bestTimes.all.toFixed(2)+'s' : '--';
+        const allBestStr = this.state.bestTimes.all ? this.state.bestTimes.all.toFixed(2)+'s' : '--';
+        if(_ui_allBest !== allBestStr) {
+            if(ui.statAllBest) ui.statAllBest.textContent = allBestStr;
+            if(ui.statAllBestM) ui.statAllBestM.textContent = allBestStr;
+            _ui_allBest = allBestStr;
+        }
+        // No lucide.createIcons() here — that was being called EVERY frame and is
+        // the #1 performance killer on ARM. Buttons now use inline SVGs instead.
+    },
+
+    updateLapHistory: function() {
+        if(!ui.lapHistoryM) return;
+        const hist = this.state.lapHistory;
+        if(!hist.length) return;
+        ui.lapHistoryM.innerHTML = hist.slice(-7).reverse().map((l,i) =>
+            `<span class="shrink-0 text-[10px] font-mono px-1.5 py-0.5 rounded ${i===0?'bg-emerald-500/20 text-emerald-400':'bg-slate-700/60 text-slate-400'}">${l.toFixed(2)}s</span>`
+        ).join('');
     },
 
     saveBrain: function() { if(!this.state.cars.length) return; const b = this.state.cars.reduce((p,c) => c.fitness>p.fitness?c:p); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(b.brain)], {type:'application/json'})); a.download = `trackml-g${this.state.generation}.json`; a.click(); },
@@ -689,19 +766,19 @@ const app = {
     switchTrack: function(i) {
         i = parseInt(i); if (i < 0 || i >= this.state.tracks.length) i = 0;
         this.state.currentTrackIndex = i; this.state.isRunning = false; this.state.generation = 1; this.state.globalBest = null; this.state.stats = []; this.updateChart();
-        document.getElementById('track-dropdown').value = i; const t = this.state.tracks[i];
+        const sel = document.getElementById('track-dropdown'); if(sel) sel.value = i;
+        const t = this.state.tracks[i];
         
         this.cacheBackgroundRender(); 
         Engine.updateWorkerTrack(t, this.state.physics);
         this.initPopulation(); 
         this.updateUI();
         
-        const btn = document.getElementById('btn-play');
-        if(btn) {
-             btn.innerHTML = `<i data-lucide="play" class="w-4 h-4"></i> <span id="play-text">Start</span>`;
-             btn.className = "w-24 md:w-32 py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition-all bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 hover:bg-emerald-500/30 text-sm";
-        }
-        if(window.lucide) lucide.createIcons();
+        // Reset play buttons using inline SVGs — no lucide needed
+        const clsOff = "rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all border text-sm px-3 py-2 bg-emerald-500/20 text-emerald-400 border-emerald-500/50 hover:bg-emerald-500/30";
+        if(ui.btnPlay) { ui.btnPlay.innerHTML = `${SVG_PLAY} <span>Start</span>`; ui.btnPlay.className = clsOff + " flex-1 py-2"; }
+        if(ui.btnPlayM) { ui.btnPlayM.innerHTML = `${SVG_PLAY} <span>Start</span>`; ui.btnPlayM.className = clsOff; }
+        // No lucide.createIcons() needed here
     },
 
     createNewTrack: function() { 
@@ -807,7 +884,6 @@ const editor = {
         const code = `generateTrackFromPath("${this.track.id}", "${name}", ${pathStr}, ${this.track.trackWidth}${zonesStr}),`;
         document.getElementById('code-output').value = code;
         document.getElementById('code-modal').classList.remove('hidden');
-        if(window.lucide) lucide.createIcons();
     },
     cancel: function() { 
         app.state.isEditing = false; 
