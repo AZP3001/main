@@ -36,20 +36,56 @@ function generateTrackFromPath(id, name, pathInput, width, customStartPos, custo
 
     if (!pathInput || pathInput.length < 3) return emptyResult;
     
-    // Copy base path to close it safely
     let path = [...pathInput];
     let start = path[0], end = path[path.length - 1];
     if (Math.hypot(start.x - end.x, start.y - end.y) < 5) path.pop(); 
-    
-    let nPoints = path.length;
-    if(nPoints < 3) return emptyResult;
+    if(path.length < 3) return emptyResult;
 
-    // Linear subdivision for dense checkpoints (improves AI learning)
+    // --- CORNER ROUNDING (BEZIER FILLET) ---
+    let smoothedPath = [];
+    for(let i = 0; i < path.length; i++) {
+        let curr = path[i];
+        let prev = path[(i - 1 + path.length) % path.length];
+        let next = path[(i + 1) % path.length];
+
+        let type = curr.type || 'rounded';
+        let radius = curr.radius !== undefined ? curr.radius : 60;
+
+        if (type === 'corner' || radius <= 0) {
+            smoothedPath.push(curr);
+        } else {
+            let d1x = prev.x - curr.x, d1y = prev.y - curr.y, len1 = Math.hypot(d1x, d1y);
+            let d2x = next.x - curr.x, d2y = next.y - curr.y, len2 = Math.hypot(d2x, d2y);
+            if (len1 < 1 || len2 < 1) { smoothedPath.push(curr); continue; }
+
+            let n1x = d1x/len1, n1y = d1y/len1;
+            let n2x = d2x/len2, n2y = d2y/len2;
+            let dot = n1x*n2x + n1y*n2y;
+            let angle = Math.acos(Math.max(-1, Math.min(1, dot)));
+            
+            let T = radius * Math.abs(Math.tan((Math.PI - angle) / 2));
+            let maxT = Math.min(len1 / 2.1, len2 / 2.1);
+            if (T > maxT || isNaN(T)) T = maxT;
+
+            let Ax = curr.x + n1x*T, Ay = curr.y + n1y*T;
+            let Bx = curr.x + n2x*T, By = curr.y + n2y*T;
+
+            let steps = Math.max(3, Math.ceil(T / 15)); 
+            for(let t = 0; t <= steps; t++) {
+                let ratio = t/steps, mt = 1-ratio;
+                smoothedPath.push({
+                    x: mt*mt*Ax + 2*mt*ratio*curr.x + ratio*ratio*Bx,
+                    y: mt*mt*Ay + 2*mt*ratio*curr.y + ratio*ratio*By
+                });
+            }
+        }
+    }
+
     let densePath = [];
-    for(let i=0; i<nPoints; i++) {
-        let p1 = path[i], p2 = path[(i+1)%nPoints];
+    for(let i=0; i<smoothedPath.length; i++) {
+        let p1 = smoothedPath[i], p2 = smoothedPath[(i+1)%smoothedPath.length];
         let dist = Math.hypot(p2.x-p1.x, p2.y-p1.y);
-        let steps = Math.max(1, Math.ceil(dist / 80));
+        let steps = Math.max(1, Math.ceil(dist / 40));
         for(let j=0; j<steps; j++) {
             densePath.push({ x: lerp(p1.x, p2.x, j/steps), y: lerp(p1.y, p2.y, j/steps) });
         }
@@ -65,8 +101,6 @@ function generateTrackFromPath(id, name, pathInput, width, customStartPos, custo
 
         let dot = (nx * (-dy1) + ny * dx1);
         let miterLen = width / Math.max(0.1, dot); 
-        
-        // Strict anti-overlap clamping for very sharp corners
         let maxMiter = Math.min(Math.hypot(curr.x-prev.x, curr.y-prev.y), Math.hypot(next.x-curr.x, next.y-curr.y)) * 0.9;
         miterLen = Math.min(miterLen, maxMiter, width * 1.5);
         
@@ -85,7 +119,7 @@ function generateTrackFromPath(id, name, pathInput, width, customStartPos, custo
     if (customStartAngle !== undefined && customStartAngle !== null) finalStartAngle = customStartAngle;
     else if (densePath.length > 1) finalStartAngle = Math.atan2(densePath[1].y - densePath[0].y, densePath[1].x - densePath[0].x);
 
-    let finalStartPos = customStartPos || {x:densePath[0].x, y:densePath[0].y};
+    let finalStartPos = customStartPos || {x:Math.round(densePath[0].x), y:Math.round(densePath[0].y)};
     
     return { id, name, path: pathInput, trackWidth: width, walls, checkpoints, startPos: finalStartPos, startAngle: finalStartAngle, zones, leftPoly, rightPoly };
 }
@@ -834,11 +868,18 @@ const app = {
 };
 
 // --- Mobile/Desktop Track Editor ---
+// --- Mobile/Desktop Track Editor ---
+
+// --- Mobile/Desktop Track Editor ---
 const editor = {
     track: null, mode: 'path', dragIndex: null, hoverIndex: null, isDraggingStart: false, isResizingZone: false, selectedZone: null, selectedIndex: null,
 
     init: function(t) { 
-        this.track = t; document.getElementById('edit-name').value = t.name; document.getElementById('edit-width').value = t.trackWidth; document.getElementById('edit-angle').value = Math.round((t.startAngle || 0) * (180/Math.PI)); this.setMode('path');
+        this.track = t; 
+        document.getElementById('edit-name').value = t.name; 
+        document.getElementById('edit-width').value = t.trackWidth; 
+        document.getElementById('edit-angle').value = Math.round((t.startAngle || 0) * (180/Math.PI)); 
+        this.setMode('path');
         const c = document.getElementById('sim-canvas');
         c.style.touchAction = 'none';
         c.onpointerdown = e => { e.preventDefault(); c.setPointerCapture(e.pointerId); this.onDown(e); };
@@ -847,19 +888,106 @@ const editor = {
     },
 
     setMode: function(m) {
-        this.mode = m; this.selectedZone = null; this.selectedIndex = null; document.getElementById('btn-del-point').classList.add('hidden');
-        ['path','zones'].forEach(x => { document.getElementById('btn-mode-'+x).className = m===x?'px-2 py-1 text-xs rounded flex items-center gap-1 bg-blue-600 text-white':'px-2 py-1 text-xs rounded flex items-center gap-1 text-slate-400'; document.getElementById(x+'-tools').style.display = m===x?'flex':'none'; });
+        this.mode = m; this.selectedZone = null; this.selectedIndex = null;
+        if(document.getElementById('btn-del-point')) document.getElementById('btn-del-point').classList.add('hidden');
+        if(document.getElementById('point-tools')) {
+            document.getElementById('point-tools').classList.add('hidden');
+            document.getElementById('point-tools').classList.remove('flex');
+        }
+        ['path','zones'].forEach(x => { 
+            const btn = document.getElementById('btn-mode-'+x);
+            if(btn) btn.className = m===x?'px-2 py-1 text-xs rounded flex items-center gap-1 bg-blue-600 text-white':'px-2 py-1 text-xs rounded flex items-center gap-1 text-slate-400'; 
+            const tools = document.getElementById(x+'-tools');
+            if(tools) tools.style.display = m===x?'flex':'none'; 
+        });
         document.getElementById('sim-canvas').style.cursor = 'default';
+    },
+
+    selectAllPoints: function() {
+        if(this.track && this.track.path && this.track.path.length > 0) {
+            this.selectedIndex = 'all';
+            this.updatePointUI();
+        }
+    },
+
+    updatePointType: function(type) {
+        if(this.selectedIndex === 'all') {
+            this.track.path.forEach(p => p.type = type);
+            this.updatePointUI();
+        } else if(this.selectedIndex !== null) {
+            this.track.path[this.selectedIndex].type = type;
+            this.updatePointUI();
+        }
+    },
+
+    updatePointRadius: function(val) {
+        if(this.selectedIndex === 'all') {
+            this.track.path.forEach(p => p.radius = parseInt(val));
+            document.getElementById('pt-radius-val').innerText = val;
+        } else if(this.selectedIndex !== null) {
+            this.track.path[this.selectedIndex].radius = parseInt(val);
+            document.getElementById('pt-radius-val').innerText = val;
+        }
+    },
+
+    updatePointUI: function() {
+        const pt = document.getElementById('point-tools');
+        if(!pt) return;
+        if (this.selectedIndex !== null) {
+            pt.classList.remove('hidden');
+            pt.classList.add('flex');
+            
+            let type = 'rounded';
+            let radius = 60;
+
+            if (this.selectedIndex === 'all') {
+                // If "all" is selected, hide the delete button
+                if(document.getElementById('btn-del-point')) document.getElementById('btn-del-point').classList.add('hidden');
+            } else {
+                // If a single point is selected, grab its specific data
+                const p = this.track.path[this.selectedIndex];
+                type = p.type || 'rounded';
+                radius = p.radius !== undefined ? p.radius : 60;
+                if(document.getElementById('btn-del-point')) document.getElementById('btn-del-point').classList.remove('hidden');
+            }
+            
+            document.getElementById('btn-pt-corner').className = type === 'corner' ? 'px-2 py-1 text-[10px] rounded bg-blue-600 text-white' : 'px-2 py-1 text-[10px] rounded text-slate-400 hover:bg-slate-700 transition-colors';
+            document.getElementById('btn-pt-rounded').className = type === 'rounded' ? 'px-2 py-1 text-[10px] rounded bg-blue-600 text-white' : 'px-2 py-1 text-[10px] rounded text-slate-400 hover:bg-slate-700 transition-colors';
+            
+            document.getElementById('radius-container').style.display = type === 'rounded' ? 'flex' : 'none';
+            document.getElementById('pt-radius-slider').value = radius;
+            document.getElementById('pt-radius-val').innerText = radius;
+        } else {
+            pt.classList.add('hidden');
+            pt.classList.remove('flex');
+            if(document.getElementById('btn-del-point')) document.getElementById('btn-del-point').classList.add('hidden');
+        }
     },
 
     save: function() { 
         const name = document.getElementById('edit-name').value || 'Custom Track';
         this.track.name = name;
-        const t = generateTrackFromPath(this.track.id, this.track.name, this.track.path, this.track.trackWidth, this.track.startPos, this.track.startAngle, this.track.zones);
+        
+        const cleanPath = this.track.path.map(p => ({
+            x: Math.round(p.x),
+            y: Math.round(p.y),
+            type: p.type || 'rounded',
+            radius: p.radius !== undefined ? Math.round(p.radius) : 60
+        }));
+
+        this.track.path = cleanPath;
+        const t = generateTrackFromPath(this.track.id, this.track.name, cleanPath, this.track.trackWidth, this.track.startPos, this.track.startAngle, this.track.zones);
         app.saveTrack(t);
-        const pathStr = JSON.stringify(this.track.path).replace(/{"x":/g,'{ x:').replace(/,"y":/g,', y:').replace(/}/g,'}');
+
+        let pathStr = JSON.stringify(cleanPath)
+            .replace(/"x":/g, 'x: ').replace(/"y":/g, 'y: ')
+            .replace(/"type":/g, 'type: ').replace(/"radius":/g, 'radius: ')
+            .replace(/}/g, ' }').replace(/{/g, '{ ');
+            
         const zonesStr = this.track.zones && this.track.zones.length ? `, ${JSON.stringify(this.track.zones)}` : '';
-        const code = `generateTrackFromPath("${this.track.id}", "${name}", ${pathStr}, ${this.track.trackWidth}${zonesStr}),`;
+        const startAng = this.track.startAngle ? Number(this.track.startAngle.toFixed(4)) : 0;
+        
+        const code = `generateTrackFromPath("${this.track.id}", "${name}", ${pathStr}, ${this.track.trackWidth}, {x:${Math.round(this.track.startPos.x)}, y:${Math.round(this.track.startPos.y)}}, ${startAng}${zonesStr}),`;
         document.getElementById('code-output').value = code;
         document.getElementById('code-modal').classList.remove('hidden');
     },
@@ -868,31 +996,24 @@ const editor = {
         document.getElementById('editor-controls').classList.add('hidden'); 
         const cv = document.getElementById('sim-canvas'); cv.onpointerdown = null; cv.onpointermove = null; cv.onpointerup = null; cv.onpointercancel = null;
     },
-    updateWidth: function(v) { this.track.trackWidth = parseInt(v); }, updateAngle: function(v) { this.track.startAngle = parseFloat(v) * (Math.PI/180); },
+    updateWidth: function(v) { this.track.trackWidth = parseInt(v); },
+    updateAngle: function(v) { this.track.startAngle = parseFloat(v) * (Math.PI/180); },
     addZone: function(type) { const z = { id:Date.now().toString(), x:CANVAS_WIDTH/2, y:CANVAS_HEIGHT/2, radius:80, type }; this.track.zones.push(z); this.selectedZone = z; },
     deleteZone: function() { if(this.selectedZone) this.track.zones = this.track.zones.filter(z => z !== this.selectedZone); this.selectedZone = null; },
     deleteSelectedPoint: function() {
-        if(this.selectedIndex !== null && this.track.path.length > 3) {
+        if(this.selectedIndex !== null && this.selectedIndex !== 'all' && this.track.path.length > 3) {
             this.track.path.splice(this.selectedIndex, 1);
             this.selectedIndex = null;
-            document.getElementById('btn-del-point').classList.add('hidden');
+            this.updatePointUI();
         }
     },
 
     getPos: function(e) { 
         const r = document.getElementById('sim-canvas').getBoundingClientRect(); 
-        // Calculate the actual scale applied by object-fit: contain
         const scale = Math.min(r.width / CANVAS_WIDTH, r.height / CANVAS_HEIGHT);
-        
-        // Calculate the invisible letterbox/pillarbox borders
         const offsetX = (r.width - (CANVAS_WIDTH * scale)) / 2;
         const offsetY = (r.height - (CANVAS_HEIGHT * scale)) / 2;
-        
-        // Adjust mouse coordinates precisely to the rendered simulation space
-        return { 
-            x: (e.clientX - r.left - offsetX) / scale, 
-            y: (e.clientY - r.top - offsetY) / scale 
-        }; 
+        return { x: (e.clientX - r.left - offsetX) / scale, y: (e.clientY - r.top - offsetY) / scale }; 
     },
 
     onDown: function(e) {
@@ -909,7 +1030,7 @@ const editor = {
         if(idx !== -1) { 
             this.selectedIndex = idx;
             this.dragIndex = idx;
-            document.getElementById('btn-del-point').classList.remove('hidden');
+            this.updatePointUI();
             return;
         } 
         
@@ -922,13 +1043,13 @@ const editor = {
             if(d<mD) { mD=d; bI=i; }
         }
         if(bI !== -1) { 
-            this.track.path.splice(bI+1, 0, {x,y}); 
+            this.track.path.splice(bI+1, 0, {x, y, type: 'rounded', radius: 60}); 
             this.dragIndex = bI+1; 
             this.selectedIndex = bI+1;
-            document.getElementById('btn-del-point').classList.remove('hidden');
+            this.updatePointUI();
         } else {
             this.selectedIndex = null;
-            document.getElementById('btn-del-point').classList.add('hidden');
+            this.updatePointUI();
         }
     },
 
@@ -941,7 +1062,10 @@ const editor = {
             } return;
         }
         if(this.isDraggingStart) this.track.startPos = {x,y};
-        else if(this.dragIndex !== null) this.track.path[this.dragIndex] = {x,y}; 
+        else if(this.dragIndex !== null) {
+            this.track.path[this.dragIndex].x = x;
+            this.track.path[this.dragIndex].y = y;
+        } 
         else this.hoverIndex = this.track.path.findIndex(p => Math.hypot(p.x-x, p.y-y)<20);
     },
 
@@ -963,11 +1087,8 @@ const editor = {
             ctx.fill(); 
             ctx.lineWidth = z===this.selectedZone?3:1; ctx.strokeStyle = z===this.selectedZone?'#fff':(z.type==='speed'?'#ef4444':'#3b82f6');
             if(z===this.selectedZone) ctx.setLineDash([5,5]); ctx.stroke(); ctx.setLineDash([]);
-            
             ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillText(z.type==='speed'?'SPEED BOOST':'POINTS', z.x, z.y);
-
-            // Resize handle
             if (z===this.selectedZone) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(z.x+z.radius, z.y, 8, 0, Math.PI*2); ctx.fill(); ctx.strokeStyle='#000'; ctx.lineWidth=2; ctx.stroke(); }
         });
 
@@ -977,8 +1098,21 @@ const editor = {
             ctx.stroke(); ctx.setLineDash([]);
             
             this.track.path.forEach((p, i) => { 
-                ctx.fillStyle = i===0?'#22c55e':(i===this.selectedIndex?'#ef4444':(i===this.hoverIndex?'#fbbf24':'#60a5fa')); 
-                ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI*2); ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke(); 
+                const isSelected = (this.selectedIndex === i || this.selectedIndex === 'all');
+                ctx.fillStyle = i===0 ? '#22c55e' : (isSelected ? '#ef4444' : (i===this.hoverIndex ? '#fbbf24' : '#60a5fa')); 
+                
+                ctx.beginPath(); 
+                if (p.type === 'corner') {
+                    ctx.rect(p.x - 6, p.y - 6, 12, 12); // Square for corners
+                } else {
+                    ctx.arc(p.x, p.y, 6, 0, Math.PI*2); // Circle for rounded
+                }
+                ctx.fill(); 
+                
+                // Add a red border to the green start point if it is selected by "Select All"
+                ctx.strokeStyle = (i===0 && isSelected) ? '#ef4444' : '#fff'; 
+                ctx.lineWidth=2; 
+                ctx.stroke(); 
             });
 
             ctx.save(); ctx.translate(p.startPos.x, p.startPos.y); ctx.rotate(p.startAngle); ctx.fillStyle='rgba(34,197,94,0.5)'; ctx.fillRect(-10,-5,20,10); ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(-5, 0); ctx.lineTo(5, 0); ctx.lineTo(2, -3); ctx.moveTo(5, 0); ctx.lineTo(2, 3); ctx.stroke(); ctx.restore();
