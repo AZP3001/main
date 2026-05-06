@@ -901,7 +901,21 @@ const editor = {
         }
     },
 
-    getPos: function(e) { const r = document.getElementById('sim-canvas').getBoundingClientRect(); return { x: (e.clientX-r.left)*(CANVAS_WIDTH/r.width), y: (e.clientY-r.top)*(CANVAS_HEIGHT/r.height) }; },
+    getPos: function(e) { 
+        const r = document.getElementById('sim-canvas').getBoundingClientRect(); 
+        // Calculate the actual scale applied by object-fit: contain
+        const scale = Math.min(r.width / CANVAS_WIDTH, r.height / CANVAS_HEIGHT);
+        
+        // Calculate the invisible letterbox/pillarbox borders
+        const offsetX = (r.width - (CANVAS_WIDTH * scale)) / 2;
+        const offsetY = (r.height - (CANVAS_HEIGHT * scale)) / 2;
+        
+        // Adjust mouse coordinates precisely to the rendered simulation space
+        return { 
+            x: (e.clientX - r.left - offsetX) / scale, 
+            y: (e.clientY - r.top - offsetY) / scale 
+        }; 
+    },
 
     onDown: function(e) {
         const {x,y} = this.getPos(e);
