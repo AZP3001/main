@@ -253,6 +253,10 @@ const workerScript = `
                 if (z.type === 'speed' && c.speed > config.maxSpeed * 0.7) c.fitness += 2.0;
                 else if (z.type === 'precision') c.fitness += 2.0;
                 else if (z.type === 'focus') fitMult = 3.0;
+                else if (z.type === 'spawnkill') {
+                    const killTimer = (z.killTimer !== undefined ? z.killTimer : 150);
+                    if (c.framesAlive >= killTimer) { c.crashed = true; return; }
+                }
             }
         }
 
@@ -613,13 +617,7 @@ const app = {
              }
         }
         
-        t.zones.forEach(z => { 
-            ctx.beginPath(); ctx.arc(z.x, z.y, z.radius, 0, Math.PI*2); 
-            ctx.fillStyle = z.type==='speed'?'rgba(239,68,68,0.3)':'rgba(59,130,246,0.3)'; 
-            ctx.fill(); 
-            ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText(z.type==='speed'?'SPEED BOOST':'POINTS', z.x, z.y);
-        });
+        // Zones are intentionally NOT rendered in normal view — only visible in the editor
 
         ctx.lineCap = 'round';
         ctx.strokeStyle='#e2e8f0'; ctx.lineWidth=4; ctx.beginPath(); t.walls.forEach(w => { ctx.moveTo(w.p1.x, w.p1.y); ctx.lineTo(w.p2.x, w.p2.y); }); ctx.stroke();
@@ -894,6 +892,8 @@ const editor = {
             document.getElementById('point-tools').classList.add('hidden');
             document.getElementById('point-tools').classList.remove('flex');
         }
+        const ktc = document.getElementById('kill-timer-container');
+        if (ktc) ktc.style.display = 'none';
         ['path','zones'].forEach(x => { 
             const btn = document.getElementById('btn-mode-'+x);
             if(btn) btn.className = m===x?'px-2 py-1 text-xs rounded flex items-center gap-1 bg-blue-600 text-white':'px-2 py-1 text-xs rounded flex items-center gap-1 text-slate-400'; 
@@ -901,6 +901,25 @@ const editor = {
             if(tools) tools.style.display = m===x?'flex':'none'; 
         });
         document.getElementById('sim-canvas').style.cursor = 'default';
+    },
+
+    updateZoneUI: function() {
+        const ktc = document.getElementById('kill-timer-container');
+        if (!ktc) return;
+        if (this.selectedZone && this.selectedZone.type === 'spawnkill') {
+            ktc.style.display = 'flex';
+            const t = this.selectedZone.killTimer !== undefined ? this.selectedZone.killTimer : 150;
+            document.getElementById('kill-timer-slider').value = t;
+            document.getElementById('kill-timer-val').textContent = t;
+        } else {
+            ktc.style.display = 'none';
+        }
+    },
+    updateZoneKillTimer: function(val) {
+        if (this.selectedZone && this.selectedZone.type === 'spawnkill') {
+            this.selectedZone.killTimer = parseInt(val);
+            document.getElementById('kill-timer-val').textContent = val;
+        }
     },
 
     selectAllPoints: function() {
@@ -998,7 +1017,11 @@ const editor = {
     },
     updateWidth: function(v) { this.track.trackWidth = parseInt(v); },
     updateAngle: function(v) { this.track.startAngle = parseFloat(v) * (Math.PI/180); },
-    addZone: function(type) { const z = { id:Date.now().toString(), x:CANVAS_WIDTH/2, y:CANVAS_HEIGHT/2, radius:80, type }; this.track.zones.push(z); this.selectedZone = z; },
+    addZone: function(type) { 
+        const z = { id:Date.now().toString(), x:CANVAS_WIDTH/2, y:CANVAS_HEIGHT/2, radius:80, type };
+        if (type === 'spawnkill') { z.killTimer = 150; z.x = this.track.startPos.x; z.y = this.track.startPos.y; }
+        this.track.zones.push(z); this.selectedZone = z; this.updateZoneUI();
+    },
     deleteZone: function() { if(this.selectedZone) this.track.zones = this.track.zones.filter(z => z !== this.selectedZone); this.selectedZone = null; },
     deleteSelectedPoint: function() {
         if(this.selectedIndex !== null && this.selectedIndex !== 'all' && this.track.path.length > 3) {
@@ -1021,7 +1044,9 @@ const editor = {
         
         if (this.mode === 'zones') {
             if(this.selectedZone && Math.hypot(x-(this.selectedZone.x+this.selectedZone.radius), y-this.selectedZone.y) < 30) { this.isResizingZone = true; return; }
-            this.selectedZone = [...this.track.zones].reverse().find(z => Math.hypot(z.x-x, z.y-y) < z.radius) || null; return;
+            this.selectedZone = [...this.track.zones].reverse().find(z => Math.hypot(z.x-x, z.y-y) < z.radius) || null; 
+            this.updateZoneUI();
+            return;
         }
         
         if(Math.hypot(x - this.track.startPos.x, y - this.track.startPos.y) < 30) { this.isDraggingStart = true; return; }
@@ -1083,12 +1108,21 @@ const editor = {
         
         p.zones.forEach(z => {
             ctx.beginPath(); ctx.arc(z.x, z.y, z.radius, 0, Math.PI*2);
-            ctx.fillStyle = z.type==='speed'?'rgba(239,68,68,0.2)':'rgba(59,130,246,0.2)';
+            let zColor = z.type==='speed' ? 'rgba(239,68,68,0.2)' : z.type==='spawnkill' ? 'rgba(249,115,22,0.25)' : 'rgba(59,130,246,0.2)';
+            ctx.fillStyle = zColor;
             ctx.fill(); 
-            ctx.lineWidth = z===this.selectedZone?3:1; ctx.strokeStyle = z===this.selectedZone?'#fff':(z.type==='speed'?'#ef4444':'#3b82f6');
+            ctx.lineWidth = z===this.selectedZone?3:1; 
+            let zStroke = z.type==='speed' ? '#ef4444' : z.type==='spawnkill' ? '#f97316' : '#3b82f6';
+            ctx.strokeStyle = z===this.selectedZone?'#fff':zStroke;
             if(z===this.selectedZone) ctx.setLineDash([5,5]); ctx.stroke(); ctx.setLineDash([]);
-            ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText(z.type==='speed'?'SPEED BOOST':'POINTS', z.x, z.y);
+            ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            let zLabel = z.type==='speed' ? 'SPEED BOOST' : z.type==='spawnkill' ? '☠ SPAWN KILL' : 'POINTS';
+            ctx.fillText(zLabel, z.x, z.y);
+            if (z.type === 'spawnkill') { 
+                const kt = z.killTimer !== undefined ? z.killTimer : 150;
+                ctx.font = '11px sans-serif'; ctx.fillStyle = 'rgba(253,186,116,0.9)';
+                ctx.fillText(`kill @ ${kt}f`, z.x, z.y + 16);
+            }
             if (z===this.selectedZone) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(z.x+z.radius, z.y, 8, 0, Math.PI*2); ctx.fill(); ctx.strokeStyle='#000'; ctx.lineWidth=2; ctx.stroke(); }
         });
 

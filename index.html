@@ -247,10 +247,20 @@
                     </button>
                 </div>
 
-                <div id="zones-tools" class="hidden flex items-center gap-2">
+                <div id="zones-tools" class="hidden flex items-center gap-2 flex-wrap">
                     <button onclick="editor.addZone('speed')" class="bg-red-500/20 text-red-400 border border-red-500/50 px-2 py-1 rounded text-[10px] md:text-xs font-bold uppercase tracking-wide">Speed Boost</button>
                     <button onclick="editor.addZone('precision')" class="bg-blue-500/20 text-blue-400 border border-blue-500/50 px-2 py-1 rounded text-[10px] md:text-xs font-bold uppercase tracking-wide">Points Area</button>
+                    <button onclick="editor.addZone('spawnkill')" class="bg-orange-500/20 text-orange-400 border border-orange-500/50 px-2 py-1 rounded text-[10px] md:text-xs font-bold uppercase tracking-wide">☠ Spawn Kill</button>
                     <button onclick="editor.deleteZone()" class="text-red-400 px-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    <!-- Kill Timer: only visible when a spawnkill zone is selected -->
+                    <div id="kill-timer-container" style="display:none" class="flex items-center gap-1.5 border-l border-slate-600 pl-2">
+                        <span class="text-[10px] text-orange-300 font-bold uppercase tracking-wide">Kill Timer</span>
+                        <span id="kill-timer-val" class="text-[10px] font-mono text-orange-400 w-6 text-right">150</span>
+                        <span class="text-[9px] text-slate-500">frames</span>
+                        <input type="range" min="30" max="600" step="10" value="150" id="kill-timer-slider"
+                               oninput="editor.updateZoneKillTimer(this.value)"
+                               class="w-16 md:w-24 h-1 bg-slate-600 rounded cursor-pointer accent-orange-400">
+                    </div>
                 </div>
 
                  <div id="path-tools" class="flex items-center gap-2 md:gap-4">
