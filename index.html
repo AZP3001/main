@@ -160,7 +160,7 @@
                 </div>
                  <div onmouseenter="app.showInfo('initialTTL')" onmouseleave="app.showInfo(null)">
                     <label class="text-[10px] text-slate-500 flex justify-between"><span>Initial TTL</span><span id="val-ttl">750</span></label>
-                    <input type="range" min="50" max="1000" step="50" value="750" oninput="app.updateConfig('initialTTL', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
+                    <input type="range" min="250" max="10000" step="250" value="750" oninput="app.updateConfig('initialTTL', this.value)" class="w-full h-1 bg-slate-600 rounded cursor-pointer">
                 </div>
                 <div onmouseenter="app.showInfo('targetLaps')" onmouseleave="app.showInfo(null)">
                     <label class="text-[10px] text-slate-500 flex justify-between"><span>Target Laps</span><span id="val-laps">3</span></label>
