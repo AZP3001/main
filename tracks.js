@@ -5,10 +5,45 @@ const getDefaultTracks = (generateTrackFromPath, CANVAS_WIDTH, CANVAS_HEIGHT) =>
     const cy = CANVAS_HEIGHT / 2;
     
     // Helper function for geometric shapes
-    const poly = (s, r) => Array.from({ length: s }, (_, i) => { 
-        const a = (Math.PI * 2 * i) / s; 
-        return { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r }; 
+    const poly = (s, r) => Array.from({ length: s }, (_, i) => {
+        const a = (Math.PI * 2 * i) / s;
+        return { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r };
     });
+
+    // Radial helper for the procedural tracks below — samples a smooth closed
+    // loop with many 'corner' points (no bezier fillet) instead of few points
+    // with a big fillet radius. Same trick "The Oval"/"Figure Eight" already use:
+    // a curve this densely sampled looks smooth on its own and never lets a
+    // fillet overshoot into a self-intersection on tight turns.
+    const polar = (steps, radiusFn, cxo = cx, cyo = cy, type = 'corner') => Array.from({ length: steps }, (_, i) => {
+        const a = (Math.PI * 2 * i) / steps;
+        const r = radiusFn(a);
+        return { x: Math.round(cxo + Math.cos(a) * r), y: Math.round(cyo + Math.sin(a) * r), type, radius: 60 };
+    });
+
+    const hillsPath = polar(48, a => 340 + Math.sin(a * 3) * 70);
+    const cloverPath = polar(56, a => 320 + Math.sin(a * 4) * 90);
+    const coastalPath = polar(40, a => 300 + Math.sin(a * 2) * 130);
+    const gearPath = polar(60, a => 300 + Math.sin(a * 6) * 45);
+    const dragPath = Array.from({ length: 40 }, (_, i) => {
+        const a = (Math.PI * 2 * i) / 40;
+        return { x: Math.round(cx + Math.cos(a) * 500), y: Math.round(cy + Math.sin(a) * 150), type: 'corner', radius: 60 };
+    });
+    const starburstPath = Array.from({ length: 10 }, (_, i) => {
+        const a = (Math.PI * 2 * i) / 10 - Math.PI / 2;
+        const isTip = i % 2 === 1;
+        const r = isTip ? 350 : 210;
+        return { x: Math.round(cx + Math.cos(a) * r), y: Math.round(cy + Math.sin(a) * r), type: isTip ? 'corner' : 'rounded', radius: 40 };
+    });
+    const switchbacksPath = (() => {
+        const pts = []; const rows = 5, xLeft = 150, xRight = 1050, rowH = (800 - 100) / (rows - 1);
+        for (let r = 0; r < rows; r++) {
+            const y = 100 + r * rowH;
+            if (r % 2 === 0) { pts.push({ x: xLeft, y, type: 'rounded', radius: 55 }); pts.push({ x: xRight, y, type: 'rounded', radius: 55 }); }
+            else { pts.push({ x: xRight, y, type: 'rounded', radius: 55 }); pts.push({ x: xLeft, y, type: 'rounded', radius: 55 }); }
+        }
+        return pts;
+    })();
 
     return [
         generateTrackFromPath("t1", "The Oval", [{ x: 950,y: 450,type: "corner",radius: 60 },{ x: 942,y: 523,type: "corner",radius: 60 },{ x: 920,y: 592,type: "corner",radius: 60 },{ x: 883,y: 656,type: "corner",radius: 60 },{ x: 834,y: 710,type: "corner",radius: 60 },{ x: 775,y: 753,type: "corner",radius: 60 },{ x: 708,y: 783,type: "corner",radius: 60 },{ x: 637,y: 798,type: "corner",radius: 60 },{ x: 563,y: 798,type: "corner",radius: 60 },{ x: 492,y: 783,type: "corner",radius: 60 },{ x: 425,y: 753,type: "corner",radius: 60 },{ x: 366,y: 710,type: "corner",radius: 60 },{ x: 317,y: 656,type: "corner",radius: 60 },{ x: 280,y: 592,type: "corner",radius: 60 },{ x: 258,y: 523,type: "corner",radius: 60 },{ x: 250,y: 450,type: "corner",radius: 60 },{ x: 258,y: 377,type: "corner",radius: 60 },{ x: 280,y: 308,type: "corner",radius: 60 },{ x: 317,y: 244,type: "corner",radius: 60 },{ x: 366,y: 190,type: "corner",radius: 60 },{ x: 425,y: 147,type: "corner",radius: 60 },{ x: 492,y: 117,type: "corner",radius: 60 },{ x: 563,y: 102,type: "corner",radius: 60 },{ x: 637,y: 102,type: "corner",radius: 60 },{ x: 708,y: 117,type: "corner",radius: 60 },{ x: 775,y: 147,type: "corner",radius: 60 },{ x: 834,y: 190,type: "corner",radius: 60 },{ x: 883,y: 244,type: "corner",radius: 60 },{ x: 920,y: 308,type: "corner",radius: 60 },{ x: 942,y: 377,type: "corner",radius: 60 }], 60, {x:949, y:444}, 1.5008),
@@ -27,5 +62,24 @@ const getDefaultTracks = (generateTrackFromPath, CANVAS_WIDTH, CANVAS_HEIGHT) =>
 		generateTrackFromPath("t14", "Neon District Circuit (gunguy2_3)", [{ x: 123,y: 94,type: "corner",radius: 60 },{ x: 319,y: 80,type: "corner",radius: 60 },{ x: 312,y: 629,type: "corner",radius: 60 },{ x: 737,y: 643,type: "corner",radius: 60 },{ x: 718,y: 456,type: "corner",radius: 60 },{ x: 525,y: 423,type: "corner",radius: 60 },{ x: 518,y: 54,type: "corner",radius: 60 },{ x: 801,y: 202,type: "corner",radius: 60 },{ x: 962,y: 93,type: "corner",radius: 60 },{ x: 1120,y: 217,type: "corner",radius: 60 },{ x: 976,y: 382,type: "corner",radius: 60 },{ x: 957,y: 565,type: "corner",radius: 60 },{ x: 1117,y: 602,type: "corner",radius: 60 },{ x: 1127,y: 762,type: "corner",radius: 60 },{ x: 809,y: 748,type: "corner",radius: 60 },{ x: 747,y: 846,type: "corner",radius: 60 },{ x: 135,y: 787,type: "corner",radius: 60 },{ x: 136,y: 546,type: "corner",radius: 60 }], 36, {x:124, y:152}, -1.4587),
         generateTrackFromPath("t15", "Veloria International (gunguy2_3)", [{ x: 182,y: 194,type: "corner",radius: 60 },{ x: 603,y: 193,type: "rounded",radius: 89 },{ x: 591,y: 445,type: "rounded",radius: 60 },{ x: 849,y: 467,type: "rounded",radius: 250 },{ x: 801,y: 157,type: "rounded",radius: 250 },{ x: 1128,y: 161,type: "rounded",radius: 167 },{ x: 1144,y: 313,type: "rounded",radius: 98 },{ x: 1021,y: 346,type: "corner",radius: 60 },{ x: 1010,y: 486,type: "corner",radius: 60 },{ x: 1137,y: 509,type: "rounded",radius: 48 },{ x: 1124,y: 625,type: "rounded",radius: 60 },{ x: 995,y: 623,type: "rounded",radius: 30 },{ x: 1044,y: 775,type: "rounded",radius: 54 },{ x: 854,y: 762,type: "rounded",radius: 74 },{ x: 809,y: 565,type: "rounded",radius: 58 },{ x: 654,y: 556,type: "rounded",radius: 250 },{ x: 684,y: 755,type: "corner",radius: 60 },{ x: 580,y: 820,type: "corner",radius: 60 },{ x: 381,y: 721,type: "corner",radius: 60 },{ x: 235,y: 793,type: "corner",radius: 60 },{ x: 82,y: 675,type: "rounded",radius: 250 },{ x: 290,y: 554,type: "rounded",radius: 250 },{ x: 93,y: 361,type: "corner",radius: 60 }], 71, {x:143, y:260}, 5.1138),
         generateTrackFromPath("t16", "Spiral", [{ x: 22,y: 176,type: "corner",radius: 60 },{ x: 1174,y: 177,type: "corner",radius: 25 },{ x: 1173,y: 212,type: "corner",radius: 26 },{ x: 65,y: 217,type: "corner",radius: 60 },{ x: 66,y: 256,type: "corner",radius: 60 },{ x: 1175,y: 254,type: "corner",radius: 60 },{ x: 1179,y: 291,type: "corner",radius: 60 },{ x: 67,y: 293,type: "corner",radius: 60 },{ x: 66,y: 329,type: "corner",radius: 60 },{ x: 1179,y: 335,type: "corner",radius: 60 },{ x: 1178,y: 373,type: "corner",radius: 60 },{ x: 65,y: 369,type: "corner",radius: 60 },{ x: 65,y: 405,type: "corner",radius: 60 },{ x: 1176,y: 412,type: "corner",radius: 60 },{ x: 1177,y: 446,type: "corner",radius: 60 },{ x: 66,y: 446,type: "corner",radius: 60 },{ x: 66,y: 483,type: "corner",radius: 60 },{ x: 1179,y: 490,type: "corner",radius: 60 },{ x: 1179,y: 527,type: "corner",radius: 60 },{ x: 66,y: 522,type: "corner",radius: 60 },{ x: 66,y: 560,type: "corner",radius: 60 },{ x: 1177,y: 565,type: "corner",radius: 60 },{ x: 1179,y: 603,type: "corner",radius: 60 },{ x: 66,y: 602,type: "corner",radius: 60 },{ x: 66,y: 639,type: "corner",radius: 60 },{ x: 1180,y: 643,type: "corner",radius: 60 },{ x: 1184,y: 682,type: "corner",radius: 60 },{ x: 66,y: 682,type: "corner",radius: 60 },{ x: 67,y: 721,type: "corner",radius: 60 },{ x: 1180,y: 721,type: "corner",radius: 60 },{ x: 1179,y: 760,type: "corner",radius: 60 },{ x: 67,y: 759,type: "corner",radius: 60 },{ x: 66,y: 798,type: "corner",radius: 60 },{ x: 1182,y: 803,type: "corner",radius: 60 },{ x: 1176,y: 878,type: "rounded",radius: 60 },{ x: 32,y: 865,type: "rounded",radius: 60 }], 20, {x:27, y:176}, 6.2832),
+        // --- New tracks below (procedurally generated via polar() above) ---
+        generateTrackFromPath("t17", "Starburst", starburstPath, 40),
+        generateTrackFromPath("t18", "Rolling Hills", hillsPath, 50),
+        generateTrackFromPath("t19", "Cloverleaf", cloverPath, 46),
+        generateTrackFromPath("t20", "Coastal Sweep", coastalPath, 60),
+        generateTrackFromPath("t21", "Gear Circuit", gearPath, 40),
+        generateTrackFromPath("t22", "Drag Strip", dragPath, 55),
+        generateTrackFromPath("t23", "Mountain Switchbacks", switchbacksPath, 40),
+        generateTrackFromPath("t24", "Autocross Pad", [
+            {x:200,y:650,type:"corner",radius:20},{x:200,y:420,type:"rounded",radius:70},
+            {x:400,y:420,type:"corner",radius:15},{x:400,y:600,type:"corner",radius:15},
+            {x:560,y:600,type:"rounded",radius:80},{x:560,y:320,type:"corner",radius:20},
+            {x:300,y:220,type:"rounded",radius:50},{x:140,y:260,type:"corner",radius:15},
+            {x:140,y:500,type:"corner",radius:15}
+        ], 32),
+        generateTrackFromPath("t25", "Infinity Bowl", [
+            {x:150,y:150,type:"rounded",radius:130},{x:1050,y:150,type:"rounded",radius:130},
+            {x:1050,y:750,type:"rounded",radius:130},{x:150,y:750,type:"rounded",radius:130}
+        ], 90),
     ];
 };

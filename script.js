@@ -100,10 +100,18 @@ function generateTrackFromPath(id, name, pathInput, width, customStartPos, custo
         let nx, ny; if (tlen < 0.001) { nx = -dy1; ny = dx1; } else { tx /= tlen; ty /= tlen; nx = -ty; ny = tx; }
 
         let dot = (nx * (-dy1) + ny * dx1);
-        let miterLen = width / Math.max(0.1, dot); 
-        let maxMiter = Math.min(Math.hypot(curr.x-prev.x, curr.y-prev.y), Math.hypot(next.x-curr.x, next.y-curr.y)) * 0.9;
-        miterLen = Math.min(miterLen, maxMiter, width * 1.5);
-        
+        // BEVEL-JOIN FALLBACK (fixes "bugged corners"): the raw miter formula
+        // (width / dot) blows up on sharp turns — dot -> cos(turnAngle/2) -> 0 near
+        // a hairpin — and the old floor of 0.1 let it spike to 10x the track width
+        // on BOTH the outer and inner edge, so the inner offset polygon would shoot
+        // past the opposite boundary and self-intersect (a visible pinch/crossing
+        // right at the corner, and a false wall collision for cars driving through).
+        // Raising the floor + tightening the final clamp keeps the join continuous
+        // (same formula, just saturates earlier) while capping the spike hard.
+        let miterLen = width / Math.max(0.42, dot);
+        let maxMiter = Math.min(Math.hypot(curr.x-prev.x, curr.y-prev.y), Math.hypot(next.x-curr.x, next.y-curr.y)) * 0.8;
+        miterLen = Math.min(miterLen, maxMiter, width * 1.2);
+
         leftPoly.push({ x: curr.x + nx * miterLen, y: curr.y + ny * miterLen });
         rightPoly.push({ x: curr.x - nx * miterLen, y: curr.y - ny * miterLen });
     }
@@ -135,21 +143,28 @@ const workerScript = `
     let localCars = [];
     let wallsBySegment = [];
 
-    // Pre-compute spatial wall lookup structure ONCE per track load
+    // Pre-compute spatial wall lookup structure ONCE per track load.
+    // Bucket walls by segmentIndex first (O(walls)) instead of rescanning the
+    // full wall list with an O(n) .includes() check per segment (was O(segs^2)),
+    // which matters a lot now that PNG-import/freehand tracks can have far more points.
     function initTrackPrecomp() {
         if (!cachedTrack) return;
         const tSegs = cachedTrack.checkpoints.length;
+        const bucket = new Array(tSegs);
+        for (let i = 0; i < tSegs; i++) bucket[i] = [];
+        const undefWalls = [];
+        for (const w of cachedTrack.walls) {
+            if (w.segmentIndex === undefined) undefWalls.push(w);
+            else bucket[w.segmentIndex].push(w);
+        }
         wallsBySegment = new Array(tSegs);
         for (let i = 0; i < tSegs; i++) {
-            wallsBySegment[i] = [];
+            const set = new Set(undefWalls);
             for (let j = -5; j <= 8; j++) {
-                let seg = (i + j + tSegs * 10) % tSegs;
-                for (let w of cachedTrack.walls) {
-                    if (w.segmentIndex === undefined || w.segmentIndex === seg) {
-                        if (!wallsBySegment[i].includes(w)) wallsBySegment[i].push(w);
-                    }
-                }
+                const seg = (i + j + tSegs * 10) % tSegs;
+                for (const w of bucket[seg]) set.add(w);
             }
+            wallsBySegment[i] = Array.from(set);
         }
     }
 
@@ -174,17 +189,22 @@ const workerScript = `
         return 1.0;
     }
 
-    // Pre-allocated flat array mutation
+    // Pre-allocated flat Float32Array mutation — weightsIH/weightsHO are flat
+    // row-major typed arrays (row = source neuron, stride = dest layer size).
+    // Flat typed arrays clone MUCH faster through postMessage than arrays-of-arrays
+    // of boxed doubles, which is the dominant cost of shipping a generation to workers.
     function feedForwardCPU(c) {
         let b = c.brain, ins = c.sensorsInputs, hL = c.hL, oL = c.oL;
-        for (let i = 0; i < hL.length; i++) {
-            let sum = b.biasH[i];
-            for (let j = 0; j < ins.length; j++) sum += ins[j] * b.weightsIH[j][i];
+        const hLen = hL.length, oLen = oL.length, inLen = ins.length;
+        const wIH = b.weightsIH, wHO = b.weightsHO, bH = b.biasH, bO = b.biasO;
+        for (let i = 0; i < hLen; i++) {
+            let sum = bH[i];
+            for (let j = 0; j < inLen; j++) sum += ins[j] * wIH[j*hLen+i];
             hL[i] = Math.tanh(sum);
         }
-        for (let i = 0; i < oL.length; i++) {
-            let sum = b.biasO[i];
-            for (let j = 0; j < hL.length; j++) sum += hL[j] * b.weightsHO[j][i];
+        for (let i = 0; i < oLen; i++) {
+            let sum = bO[i];
+            for (let j = 0; j < hLen; j++) sum += hL[j] * wHO[j*oLen+i];
             oL[i] = Math.tanh(sum);
         }
     }
@@ -363,19 +383,22 @@ const workerScript = `
 `;
 
 const Engine = {
-    workers: [], coreCount: 1, 
+    workers: [], coreCount: 1, _runState: null,
 
     init: function() {
         this.coreCount = navigator.hardwareConcurrency || 4;
         // ui cache isn't ready yet at Engine.init time, so store for later and
         // set it again after _initUICache in app.init via a small defer
         this._pendingCoreLabel = `<i data-lucide="cpu" class="w-3 h-3"></i> ${this.coreCount} Cores Active`;
-        
+
         const blob = new Blob([workerScript], {type: 'application/javascript'});
         const url = URL.createObjectURL(blob);
         for(let i=0; i<this.coreCount; i++) {
             const w = new Worker(url);
             w.onerror = (err) => console.error("Worker Thread Error:", err.message);
+            // Bound once per worker for the app's lifetime — avoids reassigning
+            // w.onmessage (a fresh closure + destructure) every animation frame.
+            w.onmessage = (e) => this.handleWorkerMessage(e.data);
             this.workers.push(w);
         }
     },
@@ -392,70 +415,129 @@ const Engine = {
         this.workers.forEach((w, i) => w.postMessage({ type: 'initCars', cars: cars.slice(i*chunkSize, (i+1)*chunkSize) }));
     },
 
+    // Brains are stored internally as flat row-major Float32Arrays (fast to
+    // mutate/copy and MUCH cheaper to structured-clone through postMessage than
+    // arrays-of-arrays of boxed doubles). iC/hC/oC ride along for JSON export.
     createBrain: function(iC, hC, oC) {
-        const r = (r, c) => Array(r).fill(0).map(() => Array(c).fill(0).map(() => Math.random() * 2 - 1));
-        const b = (c) => Array(c).fill(0).map(() => Math.random() * 2 - 1);
-        return { weightsIH: r(iC, hC), weightsHO: r(hC, oC), biasH: b(hC), biasO: b(oC) };
+        const wIH = new Float32Array(iC * hC); for(let i=0; i<wIH.length; i++) wIH[i] = Math.random()*2-1;
+        const wHO = new Float32Array(hC * oC); for(let i=0; i<wHO.length; i++) wHO[i] = Math.random()*2-1;
+        const bH = new Float32Array(hC); for(let i=0; i<hC; i++) bH[i] = Math.random()*2-1;
+        const bO = new Float32Array(oC); for(let i=0; i<oC; i++) bO[i] = Math.random()*2-1;
+        return { iC, hC, oC, weightsIH: wIH, weightsHO: wHO, biasH: bH, biasO: bO };
     },
-    copyBrain: function(b) { return { weightsIH: b.weightsIH.map(r=>[...r]), weightsHO: b.weightsHO.map(r=>[...r]), biasH: [...b.biasH], biasO: [...b.biasO] }; },
+    copyBrain: function(b) {
+        return { iC: b.iC, hC: b.hC, oC: b.oC, weightsIH: b.weightsIH.slice(), weightsHO: b.weightsHO.slice(), biasH: b.biasH.slice(), biasO: b.biasO.slice() };
+    },
     mutateBrain: function(b, r) {
-        const mut = v => Math.random() < r ? v + (Math.random() * 2 - 1) * 0.5 : v;
-        b.weightsIH = b.weightsIH.map(rw => rw.map(mut)); b.weightsHO = b.weightsHO.map(rw => rw.map(mut));
-        b.biasH = b.biasH.map(mut); b.biasO = b.biasO.map(mut);
+        const mutArr = arr => { for(let i=0; i<arr.length; i++) if(Math.random() < r) arr[i] += (Math.random()*2-1)*0.5; };
+        mutArr(b.weightsIH); mutArr(b.weightsHO); mutArr(b.biasH); mutArr(b.biasO);
+    },
+    // Nested-array JSON shape — identical to the original on-disk format, so
+    // previously-saved AI files keep loading fine.
+    brainToJSON: function(b) {
+        const rows = (flat, r, c) => { const out = new Array(r); for(let i=0; i<r; i++) { const row = new Array(c); for(let j=0; j<c; j++) row[j] = flat[i*c+j]; out[i] = row; } return out; };
+        return { weightsIH: rows(b.weightsIH, b.iC, b.hC), weightsHO: rows(b.weightsHO, b.hC, b.oC), biasH: Array.from(b.biasH), biasO: Array.from(b.biasO) };
+    },
+    brainFromJSON: function(j) {
+        const iC = j.weightsIH.length, hC = j.biasH.length, oC = j.biasO.length;
+        const wIH = new Float32Array(iC*hC); for(let i=0; i<iC; i++) for(let k=0; k<hC; k++) wIH[i*hC+k] = j.weightsIH[i][k];
+        const wHO = new Float32Array(hC*oC); for(let i=0; i<hC; i++) for(let k=0; k<oC; k++) wHO[i*oC+k] = j.weightsHO[i][k];
+        return { iC, hC, oC, weightsIH: wIH, weightsHO: wHO, biasH: Float32Array.from(j.biasH), biasO: Float32Array.from(j.biasO) };
     },
 
     runCPUWorkers: function(iters) {
         return new Promise(resolve => {
-            let completed = 0; let shouldEvolve = false; let totalMaxLaps = 0;
-            const stride = 11 + SENSOR_COUNT;
-            
-            this.workers.forEach(w => {
-                w.onmessage = (e) => {
-                    const { buffer, allCrashed, maxLaps } = e.data;
-                    if(maxLaps > totalMaxLaps) totalMaxLaps = maxLaps;
-                    if(allCrashed || maxLaps >= app.state.targetLaps) shouldEvolve = true;
-                    
-                    for(let i=0; i<buffer.length/stride; i++) {
-                        let idx = i * stride;
-                        const id = buffer[idx];
-                        const c = app.state.cars[id];
-                        if(!c) continue;
-                        
-                        c.crashed = buffer[idx+1] === 1;
-                        c.x = buffer[idx+2];
-                        c.y = buffer[idx+3];
-                        c.angle = buffer[idx+4];
-                        c.speed = buffer[idx+5];
-                        c.inputs[0] = buffer[idx+6];
-                        c.inputs[1] = buffer[idx+7];
-                        
-                        const prevLaps = c.completedLaps;
-                        c.completedLaps = buffer[idx+8];
-                        c.fitness = buffer[idx+9];
-                        
-                        for(let j=0; j<SENSOR_COUNT; j++) c.sensors[j] = buffer[idx+11+j];
-                        
-                        if(c.completedLaps > prevLaps) {
-                            c.isLapFinished = true;
-                            const time = buffer[idx+10];
-                            if(!app.state.bestTimes.gen || time < app.state.bestTimes.gen) app.state.bestTimes.gen = time;
-                            if(!app.state.bestTimes.all || time < app.state.bestTimes.all) app.state.bestTimes.all = time;
-                            // Track lap history for mobile display (keep last 20)
-                            app.state.lapHistory.push(time);
-                            if(app.state.lapHistory.length > 20) app.state.lapHistory.shift();
-                            app.updateLapHistory();
-                        }
-                    }
-                    
-                    completed++;
-                    if(completed === this.workers.length) {
-                        const globalCrashed = app.state.cars.every(c => c.crashed);
-                        resolve({ triggerEvolve: globalCrashed || totalMaxLaps >= app.state.targetLaps });
-                    }
-                };
-                w.postMessage({ type: 'run', iters });
-            });
+            this._runState = { completed: 0, totalMaxLaps: 0, total: this.workers.length, resolve };
+            for(let i=0; i<this.workers.length; i++) this.workers[i].postMessage({ type: 'run', iters });
         });
+    },
+
+    // Set once as each worker's onmessage (see init) — reads/writes the shared
+    // per-call _runState instead of a handler recreated every frame.
+    handleWorkerMessage: function(data) {
+        const st = this._runState;
+        if(!st) return;
+        const { buffer, maxLaps } = data;
+        if(maxLaps > st.totalMaxLaps) st.totalMaxLaps = maxLaps;
+        const stride = 11 + SENSOR_COUNT;
+
+        for(let i=0; i<buffer.length/stride; i++) {
+            let idx = i * stride;
+            const id = buffer[idx];
+            const c = app.state.cars[id];
+            if(!c) continue;
+
+            c.crashed = buffer[idx+1] === 1;
+            c.x = buffer[idx+2];
+            c.y = buffer[idx+3];
+            c.angle = buffer[idx+4];
+            c.speed = buffer[idx+5];
+            c.inputs[0] = buffer[idx+6];
+            c.inputs[1] = buffer[idx+7];
+
+            const prevLaps = c.completedLaps;
+            c.completedLaps = buffer[idx+8];
+            c.fitness = buffer[idx+9];
+
+            for(let j=0; j<SENSOR_COUNT; j++) c.sensors[j] = buffer[idx+11+j];
+
+            if(c.completedLaps > prevLaps) {
+                c.isLapFinished = true;
+                const time = buffer[idx+10];
+                if(!app.state.bestTimes.gen || time < app.state.bestTimes.gen) app.state.bestTimes.gen = time;
+                if(!app.state.bestTimes.all || time < app.state.bestTimes.all) app.state.bestTimes.all = time;
+                // Track lap history for mobile display (keep last 20)
+                app.state.lapHistory.push(time);
+                if(app.state.lapHistory.length > 20) app.state.lapHistory.shift();
+                app.updateLapHistory();
+            }
+        }
+
+        st.completed++;
+        if(st.completed === st.total) {
+            const globalCrashed = app.state.cars.every(c => c.crashed);
+            st.resolve({ triggerEvolve: globalCrashed || st.totalMaxLaps >= app.state.targetLaps });
+        }
+    }
+};
+
+// --- localStorage persistence (custom tracks + settings) ---
+// Every call is try/caught: localStorage can throw (private browsing, quota,
+// disabled storage) and none of this should ever be able to crash the sim.
+const Persist = {
+    SETTINGS_KEY: 'trackml_settings_v1',
+    TRACKS_KEY: 'trackml_custom_tracks_v1',
+
+    saveSettings: function(state) {
+        try {
+            const { populationSize, eliteClones, mutationRate, hiddenLayers, initialTTL, targetLaps, speedMultiplier, physics } = state;
+            localStorage.setItem(this.SETTINGS_KEY, JSON.stringify({ populationSize, eliteClones, mutationRate, hiddenLayers, initialTTL, targetLaps, speedMultiplier, physics }));
+        } catch (e) { /* ignore — storage unavailable */ }
+    },
+    loadSettings: function() {
+        try {
+            const raw = localStorage.getItem(this.SETTINGS_KEY);
+            return raw ? JSON.parse(raw) : null;
+        } catch (e) { return null; }
+    },
+
+    // Stores only the raw track definition (id/name/path/width/start/zones) —
+    // full geometry (walls, checkpoints, polys) is always rebuilt fresh via
+    // generateTrackFromPath, same as the built-in tracks.
+    saveCustomTracks: function(tracks, builtInIds) {
+        try {
+            const custom = tracks.filter(t => !builtInIds.has(t.id)).map(t => ({
+                id: t.id, name: t.name, path: t.path, trackWidth: t.trackWidth,
+                startPos: t.startPos, startAngle: t.startAngle, zones: t.zones || []
+            }));
+            localStorage.setItem(this.TRACKS_KEY, JSON.stringify(custom));
+        } catch (e) { /* ignore */ }
+    },
+    loadCustomTracks: function() {
+        try {
+            const raw = localStorage.getItem(this.TRACKS_KEY);
+            return raw ? JSON.parse(raw) : [];
+        } catch (e) { return []; }
     }
 };
 
@@ -466,7 +548,7 @@ const app = {
         physics: { maxSpeed: 10, acceleration: 0.05, turnSpeed: 0.04, grip: 0.93 },
         tracks: [], currentTrackIndex: 1, cars: [], generation: 1, isRunning: false, speedMultiplier: 1, hyperMode: false,
         stats: [], globalBest: null, bestTimes: { gen: null, all: null }, isEditing: false, trackToEdit: null,
-        bgCanvas: null, lapHistory: []
+        bgCanvas: null, lapHistory: [], spectateCarId: null
     },
 
     _initUICache: function() {
@@ -484,6 +566,8 @@ const app = {
         ui.telBrake     = $('tel-brake');
         ui.telSpeed     = $('tel-speed');
         ui.telSpeedVal  = $('tel-speed-val');
+        ui.telemetryLabel = $('telemetry-label');
+        ui.btnRelease   = $('btn-release-spectate');
         ui.canvas       = $('sim-canvas');
         ui.ctx          = ui.canvas.getContext('2d');
         ui.btnPlay      = $('btn-play');
@@ -494,12 +578,47 @@ const app = {
         ui.coreCount    = $('core-count');
         // Apply the pending Engine core label now that the element is cached
         if(ui.coreCount && Engine._pendingCoreLabel) ui.coreCount.innerHTML = Engine._pendingCoreLabel;
+        // Click/tap a car to spectate it (independent of the editor's own
+        // pointer handlers, which only attach while editing).
+        ui.canvas.addEventListener('pointerdown', e => this.handleCanvasClick(e));
+    },
+
+    // Resolves which car telemetry/highlight follows: a manually-clicked car
+    // (until it crashes or the user releases it), otherwise the fastest alive.
+    getSpectatedCar: function() {
+        const id = this.state.spectateCarId;
+        if (id !== null) {
+            const car = this.state.cars[id];
+            if (car && !car.crashed) return car;
+            this.state.spectateCarId = null; // selection crashed/gone — auto-revert
+        }
+        if (!this.state.cars.length) return null;
+        return this.state.cars.reduce((p,c) => (c.fitness > p.fitness && !c.crashed ? c : p), this.state.cars[0]);
+    },
+
+    releaseSpectate: function() { this.state.spectateCarId = null; },
+
+    handleCanvasClick: function(e) {
+        if (this.state.isEditing || this.state.hyperMode || !this.state.cars.length) return;
+        const rect = ui.canvas.getBoundingClientRect();
+        const scale = Math.min(rect.width / CANVAS_WIDTH, rect.height / CANVAS_HEIGHT);
+        const offsetX = (rect.width - CANVAS_WIDTH*scale) / 2, offsetY = (rect.height - CANVAS_HEIGHT*scale) / 2;
+        const x = (e.clientX - rect.left - offsetX) / scale, y = (e.clientY - rect.top - offsetY) / scale;
+
+        let closest = null, closestDist = 22; // hit radius, canvas units
+        for (const c of this.state.cars) {
+            if (c.crashed) continue;
+            const d = Math.hypot(c.x - x, c.y - y);
+            if (d < closestDist) { closestDist = d; closest = c; }
+        }
+        this.state.spectateCarId = closest ? closest.id : null;
     },
 
     init: function() {
         try {
             Engine.init();
-            this.resetTracks(); 
+            this.loadSettingsFromStorage();
+            this.resetTracks();
             this.initChart();
             this._initUICache();
             if(window.lucide) lucide.createIcons();
@@ -510,7 +629,18 @@ const app = {
     resetTracks: function() {
         // Load tracks from the external tracks.js file
         this.state.tracks = getDefaultTracks(generateTrackFromPath, CANVAS_WIDTH, CANVAS_HEIGHT);
-        
+        this._builtInTrackIds = new Set(this.state.tracks.map(t => t.id));
+
+        // Re-add any custom/imported/community tracks saved locally in a
+        // previous session — rebuilt fresh from their raw definition.
+        const saved = Persist.loadCustomTracks();
+        for (const raw of saved) {
+            try {
+                const t = generateTrackFromPath(raw.id, raw.name, raw.path, raw.trackWidth, raw.startPos, raw.startAngle, raw.zones);
+                if (!this._builtInTrackIds.has(t.id) && !this.state.tracks.some(existing => existing.id === t.id)) this.state.tracks.push(t);
+            } catch (e) { console.warn('Skipped a corrupt saved track:', e); }
+        }
+
         this.renderTrackList();
         this.switchTrack(0);
     },
@@ -526,8 +656,8 @@ const app = {
             if(loadedBrain) { brain = Engine.copyBrain(loadedBrain); if(i>0) Engine.mutateBrain(brain, this.state.mutationRate); } 
             else { brain = Engine.createBrain(SENSOR_COUNT+2, this.state.hiddenLayers, 2); }
             newCars.push({
-                id: i, x: track.startPos.x, y: track.startPos.y, angle: track.startAngle, vx: 0, vy: 0, speed: 0, 
-                color: `hsl(${Math.random()*360},80%,60%)`, brain, fitness: 0, crashed: false, sensors: Array(SENSOR_COUNT).fill(0), inputs: [0,0],
+                id: i, x: track.startPos.x, y: track.startPos.y, angle: track.startAngle, vx: 0, vy: 0, speed: 0,
+                color: `hsl(${Math.random()*360},80%,60%)`, brain, fitness: 0, crashed: false, sensors: new Float32Array(SENSOR_COUNT), inputs: new Float32Array(2),
                 timeToLive: this.state.initialTTL, nextCheckpointIndex: 1, framesAlive: 0, lapTimes: [], completedLaps: 0, checkpointsReached: 0, isLapFinished: false
             });
         }
@@ -553,7 +683,7 @@ const app = {
             for(let k=0; k<Math.min(this.state.eliteClones, this.state.populationSize); k++) {
                 newCars.push({
                     id: k, x: track.startPos.x, y: track.startPos.y, angle: track.startAngle, vx: 0, vy: 0, speed: 0, color: k===0?'#22c55e':'#84cc16',
-                    brain: Engine.copyBrain(this.state.globalBest.brain), fitness: 0, crashed: false, sensors: Array(SENSOR_COUNT).fill(0), inputs: [0,0], 
+                    brain: Engine.copyBrain(this.state.globalBest.brain), fitness: 0, crashed: false, sensors: new Float32Array(SENSOR_COUNT), inputs: new Float32Array(2),
                     timeToLive: this.state.initialTTL, nextCheckpointIndex: 1, framesAlive: 0, lapTimes: [], completedLaps: 0, checkpointsReached: 0, isLapFinished: false
                 });
             }
@@ -565,19 +695,15 @@ const app = {
             const p2 = sorted[Math.floor(Math.random() * parentPoolSize)];
             
             const childBrain = Engine.createBrain(SENSOR_COUNT+2, this.state.hiddenLayers, 2);
-            for(let j=0; j<childBrain.weightsIH.length; j++) {
-                for(let k=0; k<childBrain.weightsIH[j].length; k++) childBrain.weightsIH[j][k] = Math.random() < 0.5 ? p1.brain.weightsIH[j][k] : p2.brain.weightsIH[j][k];
-            }
-            for(let j=0; j<childBrain.weightsHO.length; j++) {
-                for(let k=0; k<childBrain.weightsHO[j].length; k++) childBrain.weightsHO[j][k] = Math.random() < 0.5 ? p1.brain.weightsHO[j][k] : p2.brain.weightsHO[j][k];
-            }
-            childBrain.biasH = childBrain.biasH.map((v, idx) => Math.random() < 0.5 ? p1.brain.biasH[idx] : p2.brain.biasH[idx]);
-            childBrain.biasO = childBrain.biasO.map((v, idx) => Math.random() < 0.5 ? p1.brain.biasO[idx] : p2.brain.biasO[idx]);
+            for(let k=0; k<childBrain.weightsIH.length; k++) childBrain.weightsIH[k] = Math.random() < 0.5 ? p1.brain.weightsIH[k] : p2.brain.weightsIH[k];
+            for(let k=0; k<childBrain.weightsHO.length; k++) childBrain.weightsHO[k] = Math.random() < 0.5 ? p1.brain.weightsHO[k] : p2.brain.weightsHO[k];
+            for(let k=0; k<childBrain.biasH.length; k++) childBrain.biasH[k] = Math.random() < 0.5 ? p1.brain.biasH[k] : p2.brain.biasH[k];
+            for(let k=0; k<childBrain.biasO.length; k++) childBrain.biasO[k] = Math.random() < 0.5 ? p1.brain.biasO[k] : p2.brain.biasO[k];
 
             Engine.mutateBrain(childBrain, this.state.mutationRate);
             newCars.push({
                 id: i, x: track.startPos.x, y: track.startPos.y, angle: track.startAngle, vx: 0, vy: 0, speed: 0, color: `hsl(${Math.random()*360},80%,60%)`,
-                brain: childBrain, fitness: 0, crashed: false, sensors: Array(SENSOR_COUNT).fill(0), inputs: [0,0], 
+                brain: childBrain, fitness: 0, crashed: false, sensors: new Float32Array(SENSOR_COUNT), inputs: new Float32Array(2),
                 timeToLive: this.state.initialTTL, nextCheckpointIndex: 1, framesAlive: 0, lapTimes: [], completedLaps: 0, checkpointsReached: 0, isLapFinished: false
             });
         }
@@ -638,17 +764,27 @@ const app = {
         if(this.state.bgCanvas) ctx.drawImage(this.state.bgCanvas, 0, 0);
 
         if(!this.state.hyperMode) {
-            // Render ALL cars persistently, no color flashing, no hiding
-            const best = this.state.cars.reduce((p,c) => (c.fitness > p.fitness && !c.crashed ? c : p), this.state.cars[0]);
-            
-            if(best && !best.crashed) {
-                const i = best.inputs || [0,0];
+            // Render ALL cars persistently, no color flashing, no hiding.
+            // Telemetry/highlight follows a manually-clicked car, or else
+            // auto-follows the fastest alive car.
+            const spectated = this.getSpectatedCar();
+            const isManual = this.state.spectateCarId !== null;
+
+            if(ui.telemetryLabel) {
+                ui.telemetryLabel.textContent = spectated
+                    ? (isManual ? `Spectating Car #${spectated.id} (Manual)` : 'Live Telemetry (Auto — Fastest)')
+                    : 'Live Telemetry';
+            }
+            if(ui.btnRelease) ui.btnRelease.classList.toggle('hidden', !isManual);
+
+            if(spectated && !spectated.crashed) {
+                const i = spectated.inputs || [0,0];
                 ui.telSteerL.style.width = i[0] < 0 ? Math.abs(i[0])*50 + '%' : '0%';
                 ui.telSteerR.style.width = i[0] > 0 ? i[0]*50 + '%' : '0%';
-                if(i[1] > 0) { ui.telGas.style.width = i[1]*100 + '%'; ui.telBrake.style.width = '0%'; } 
+                if(i[1] > 0) { ui.telGas.style.width = i[1]*100 + '%'; ui.telBrake.style.width = '0%'; }
                 else { ui.telGas.style.width = '0%'; ui.telBrake.style.width = Math.abs(i[1])*100 + '%'; }
-                ui.telSpeed.style.width = Math.min((best.speed / this.state.physics.maxSpeed)*100, 100) + '%';
-                ui.telSpeedVal.textContent = Math.round(best.speed);
+                ui.telSpeed.style.width = Math.min((spectated.speed / this.state.physics.maxSpeed)*100, 100) + '%';
+                ui.telSpeedVal.textContent = Math.round(spectated.speed);
             }
 
             this.state.cars.forEach(c => {
@@ -661,7 +797,16 @@ const app = {
                 ctx.fillStyle='#fbbf24'; ctx.fillRect(6, -3, 1, 2); ctx.fillRect(6, 1, 1, 2);
                 ctx.restore();
 
-                if(c === best) {
+                if(c === spectated) {
+                    // Highlight ring around the spectated car — solid cyan when
+                    // manually picked, a subtle dashed ring when auto-following.
+                    ctx.save();
+                    ctx.strokeStyle = isManual ? '#22d3ee' : 'rgba(255,255,255,0.55)';
+                    ctx.lineWidth = isManual ? 2.5 : 1.5;
+                    if(!isManual) ctx.setLineDash([4,3]);
+                    ctx.beginPath(); ctx.arc(c.x, c.y, 16, 0, Math.PI*2); ctx.stroke();
+                    ctx.restore();
+
                     if(c.sensors) {
                         c.sensors.forEach((s,k) => {
                             const ang = c.angle + SENSOR_ANGLES[k];
@@ -709,9 +854,9 @@ const app = {
         if(ui.hyperBanner) ui.hyperBanner.classList.toggle('hidden', !active);
     },
 
-    reset: function() { 
-        this.state.isRunning=false; this.state.generation=1; this.state.stats=[]; 
-        this.state.bestTimes={gen:null,all:null}; this.state.lapHistory=[];
+    reset: function() {
+        this.state.isRunning=false; this.state.generation=1; this.state.stats=[];
+        this.state.bestTimes={gen:null,all:null}; this.state.lapHistory=[]; this.state.spectateCarId=null;
         _ui_gen=-1; _ui_alive=-1; _ui_allBest=null;
         if(ui.lapHistoryM) ui.lapHistoryM.innerHTML = '<span class="text-[10px] text-slate-600 italic">No laps yet</span>';
         this.initPopulation(); 
@@ -719,12 +864,52 @@ const app = {
         this.updateUI(); this.toggleRun(); this.toggleRun(); 
     },
     
-    updatePhysics: function(k, v) { this.state.physics[k] = parseFloat(v); document.getElementById('val-'+(k==='maxSpeed'?'maxSpeed':(k==='acceleration'?'accel':(k==='turnSpeed'?'turn':'grip')))).innerText = k==='grip'?Math.round(v*100)+'%':v; Engine.updateWorkerTrack(this.currentTrack, this.state.physics); },
-    updateConfig: function(k, v) { 
-        this.state[k] = parseFloat(v); 
+    updatePhysics: function(k, v) { this.state.physics[k] = parseFloat(v); document.getElementById('val-'+(k==='maxSpeed'?'maxSpeed':(k==='acceleration'?'accel':(k==='turnSpeed'?'turn':'grip')))).innerText = k==='grip'?Math.round(v*100)+'%':v; Engine.updateWorkerTrack(this.currentTrack, this.state.physics); this.queueSaveSettings(); },
+    updateConfig: function(k, v) {
+        this.state[k] = parseFloat(v);
         let id = 'val-'+(k==='populationSize'?'pop':k==='targetLaps'?'laps':k==='speedMultiplier'?'speed':k==='eliteClones'?'elite':k==='mutationRate'?'mut':k==='hiddenLayers'?'hidden':'ttl');
         let d = v; if(k==='speedMultiplier') d+='x'; if(k==='mutationRate') d=Math.round(v*100)+'%';
-        const el = document.getElementById(id); if(el) el.innerText = d; 
+        const el = document.getElementById(id); if(el) el.innerText = d;
+        this.queueSaveSettings();
+    },
+
+    _saveSettingsTimer: null,
+    queueSaveSettings: function() {
+        clearTimeout(this._saveSettingsTimer);
+        this._saveSettingsTimer = setTimeout(() => Persist.saveSettings(this.state), 400);
+    },
+
+    // Restores sliders left the way the user had them last session.
+    loadSettingsFromStorage: function() {
+        const s = Persist.loadSettings();
+        if (!s) return;
+        ['populationSize','eliteClones','mutationRate','hiddenLayers','initialTTL','targetLaps','speedMultiplier'].forEach(k => {
+            if (typeof s[k] === 'number' && isFinite(s[k])) this.state[k] = s[k];
+        });
+        if (s.physics) {
+            ['maxSpeed','acceleration','turnSpeed','grip'].forEach(k => {
+                if (typeof s.physics[k] === 'number' && isFinite(s.physics[k])) this.state.physics[k] = s.physics[k];
+            });
+        }
+        this.syncSettingsUI();
+    },
+    syncSettingsUI: function() {
+        const st = this.state;
+        const apply = (inputId, val, labelId, fmt) => {
+            const inp = document.getElementById(inputId); if (inp) inp.value = val;
+            const lbl = document.getElementById(labelId); if (lbl) lbl.innerText = fmt ? fmt(val) : val;
+        };
+        apply('cfg-speedMultiplier', st.speedMultiplier, 'val-speed', v => v+'x');
+        apply('cfg-populationSize', st.populationSize, 'val-pop');
+        apply('cfg-eliteClones', st.eliteClones, 'val-elite');
+        apply('cfg-mutationRate', st.mutationRate, 'val-mut', v => Math.round(v*100)+'%');
+        apply('cfg-hiddenLayers', st.hiddenLayers, 'val-hidden');
+        apply('cfg-initialTTL', st.initialTTL, 'val-ttl');
+        apply('cfg-targetLaps', st.targetLaps, 'val-laps');
+        apply('cfg-maxSpeed', st.physics.maxSpeed, 'val-maxSpeed');
+        apply('cfg-acceleration', st.physics.acceleration, 'val-accel');
+        apply('cfg-turnSpeed', st.physics.turnSpeed, 'val-turn');
+        apply('cfg-grip', st.physics.grip, 'val-grip', v => Math.round(v*100)+'%');
     },
 
     showInfo: function(k) {
@@ -768,14 +953,33 @@ const app = {
         ).join('');
     },
 
-    saveBrain: function() { if(!this.state.cars.length) return; const b = this.state.cars.reduce((p,c) => c.fitness>p.fitness?c:p); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(b.brain)], {type:'application/json'})); a.download = `trackml-g${this.state.generation}.json`; a.click(); },
-    loadBrain: function(inp) { if(!inp.files[0]) return; const r = new FileReader(); r.onload = e => { try { this.reset(); this.initPopulation(JSON.parse(e.target.result)); } catch(er) { alert('Invalid File'); } }; r.readAsText(inp.files[0]); },
+    saveBrain: function() { if(!this.state.cars.length) return; const b = this.state.cars.reduce((p,c) => c.fitness>p.fitness?c:p); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(Engine.brainToJSON(b.brain))], {type:'application/json'})); a.download = `trackml-g${this.state.generation}.json`; a.click(); },
+    loadBrain: function(inp) { if(!inp.files[0]) return; const r = new FileReader(); r.onload = e => { try { const brain = Engine.brainFromJSON(JSON.parse(e.target.result)); this.reset(); this.initPopulation(brain); } catch(er) { alert('Invalid File'); } }; r.readAsText(inp.files[0]); },
 
-    renderTrackList: function() { const sel = document.getElementById('track-dropdown'); sel.innerHTML = ''; this.state.tracks.forEach((t, i) => { const opt = document.createElement('option'); opt.value = i; opt.text = t.name; opt.selected = this.state.currentTrackIndex === i; sel.appendChild(opt); }); },
+    renderTrackList: function() {
+        const sel = document.getElementById('track-dropdown'); sel.innerHTML = '';
+        this.state.tracks.forEach((t, i) => { const opt = document.createElement('option'); opt.value = i; opt.text = t.name; opt.selected = this.state.currentTrackIndex === i; sel.appendChild(opt); });
+        const search = document.getElementById('track-search');
+        if (search && search.value) this.filterTrackList(search.value);
+    },
+    filterTrackList: function(query) {
+        const sel = document.getElementById('track-dropdown'); if (!sel) return;
+        const q = query.trim().toLowerCase();
+        let visibleCount = 0, firstVisible = -1;
+        for (const opt of sel.options) {
+            const match = !q || opt.text.toLowerCase().includes(q);
+            opt.style.display = match ? '' : 'none';
+            if (match) { visibleCount++; if (firstVisible === -1) firstVisible = parseInt(opt.value); }
+        }
+        // if the currently-selected track got filtered out, jump to the first visible match
+        if (visibleCount > 0 && sel.selectedOptions.length && sel.selectedOptions[0].style.display === 'none') {
+            sel.value = firstVisible;
+        }
+    },
     
     switchTrack: function(i) {
         i = parseInt(i); if (i < 0 || i >= this.state.tracks.length) i = 0;
-        this.state.currentTrackIndex = i; this.state.isRunning = false; this.state.generation = 1; this.state.globalBest = null; this.state.stats = []; this.updateChart();
+        this.state.currentTrackIndex = i; this.state.isRunning = false; this.state.generation = 1; this.state.globalBest = null; this.state.stats = []; this.state.spectateCarId = null; this.updateChart();
         const sel = document.getElementById('track-dropdown'); if(sel) sel.value = i;
         const t = this.state.tracks[i];
         
@@ -797,21 +1001,36 @@ const app = {
         document.getElementById('editor-controls').classList.remove('hidden'); 
         closeSidebar();
     },
-    editTrack: function() { 
-        this.state.isEditing = true; this.state.trackToEdit = JSON.parse(JSON.stringify(this.currentTrack)); 
-        editor.init(this.state.trackToEdit); this.state.isRunning = false; 
-        document.getElementById('editor-controls').classList.remove('hidden'); 
+    editTrack: function() {
+        this.state.isEditing = true; this.state.trackToEdit = JSON.parse(JSON.stringify(this.currentTrack));
+        editor.init(this.state.trackToEdit); this.state.isRunning = false;
+        document.getElementById('editor-controls').classList.remove('hidden');
         closeSidebar();
     },
-    saveTrack: function(t) { 
-        const idx = this.state.tracks.findIndex(tr => tr.id === t.id); 
-        if(idx !== -1) this.state.tracks[idx] = t; 
-        else { this.state.tracks.push(t); this.state.currentTrackIndex = this.state.tracks.length-1; } 
-        this.state.isEditing = false; 
-        document.getElementById('editor-controls').classList.add('hidden'); 
-        this.switchTrack(this.state.currentTrackIndex); this.renderTrackList(); 
+    duplicateTrack: function() {
+        const src = this.currentTrack; if (!src) return;
+        const copy = generateTrackFromPath('custom'+Date.now(), src.name + ' (Copy)', JSON.parse(JSON.stringify(src.path)), src.trackWidth, src.startPos, src.startAngle, JSON.parse(JSON.stringify(src.zones || [])));
+        this.state.isEditing = true; this.state.trackToEdit = copy; editor.init(copy); this.state.isRunning = false;
+        document.getElementById('editor-controls').classList.remove('hidden');
+        closeSidebar();
     },
-    deleteTrack: function() { if(confirm("Delete this track?")) { if(this.state.tracks.length > 1) { this.state.tracks.splice(this.state.currentTrackIndex, 1); this.switchTrack(0); this.renderTrackList(); } else alert("Cannot delete last track."); } },
+    saveTrack: function(t) {
+        const idx = this.state.tracks.findIndex(tr => tr.id === t.id);
+        if(idx !== -1) this.state.tracks[idx] = t;
+        else { this.state.tracks.push(t); this.state.currentTrackIndex = this.state.tracks.length-1; }
+        this.state.isEditing = false;
+        document.getElementById('editor-controls').classList.add('hidden');
+        this.switchTrack(this.state.currentTrackIndex); this.renderTrackList();
+        Persist.saveCustomTracks(this.state.tracks, this._builtInTrackIds || new Set());
+    },
+    deleteTrack: function() {
+        if(confirm("Delete this track?")) {
+            if(this.state.tracks.length > 1) {
+                this.state.tracks.splice(this.state.currentTrackIndex, 1); this.switchTrack(0); this.renderTrackList();
+                Persist.saveCustomTracks(this.state.tracks, this._builtInTrackIds || new Set());
+            } else alert("Cannot delete last track.");
+        }
+    },
 
     chart: null,
     initChart: function() { 
@@ -871,22 +1090,24 @@ const app = {
 // --- Mobile/Desktop Track Editor ---
 const editor = {
     track: null, mode: 'path', dragIndex: null, hoverIndex: null, isDraggingStart: false, isResizingZone: false, selectedZone: null, selectedIndex: null,
+    isDrawing: false, drawPoints: [],
 
-    init: function(t) { 
-        this.track = t; 
-        document.getElementById('edit-name').value = t.name; 
-        document.getElementById('edit-width').value = t.trackWidth; 
-        document.getElementById('edit-angle').value = Math.round((t.startAngle || 0) * (180/Math.PI)); 
+    init: function(t) {
+        this.track = t;
+        document.getElementById('edit-name').value = t.name;
+        document.getElementById('edit-width').value = t.trackWidth;
+        document.getElementById('edit-angle').value = Math.round((t.startAngle || 0) * (180/Math.PI));
         this.setMode('path');
         const c = document.getElementById('sim-canvas');
         c.style.touchAction = 'none';
         c.onpointerdown = e => { e.preventDefault(); c.setPointerCapture(e.pointerId); this.onDown(e); };
         c.onpointermove = e => { e.preventDefault(); this.onMove(e); };
-        c.onpointerup = c.onpointercancel = e => { c.releasePointerCapture(e.pointerId); this.dragIndex=null; this.isDraggingStart=false; this.isResizingZone=false; };
+        c.onpointerup = c.onpointercancel = e => { c.releasePointerCapture(e.pointerId); this.dragIndex=null; this.isDraggingStart=false; this.isResizingZone=false; if(this.isDrawing) this.finishDrawing(); };
     },
 
     setMode: function(m) {
         this.mode = m; this.selectedZone = null; this.selectedIndex = null;
+        this.isDrawing = false; this.drawPoints = [];
         if(document.getElementById('btn-del-point')) document.getElementById('btn-del-point').classList.add('hidden');
         if(document.getElementById('point-tools')) {
             document.getElementById('point-tools').classList.add('hidden');
@@ -894,13 +1115,97 @@ const editor = {
         }
         const ktc = document.getElementById('kill-timer-container');
         if (ktc) ktc.style.display = 'none';
-        ['path','zones'].forEach(x => { 
+        ['path','draw','zones'].forEach(x => {
             const btn = document.getElementById('btn-mode-'+x);
-            if(btn) btn.className = m===x?'px-2 py-1 text-xs rounded flex items-center gap-1 bg-blue-600 text-white':'px-2 py-1 text-xs rounded flex items-center gap-1 text-slate-400'; 
+            if(btn) btn.className = m===x?'px-2 py-1 text-xs rounded flex items-center gap-1 bg-blue-600 text-white':'px-2 py-1 text-xs rounded flex items-center gap-1 text-slate-400';
             const tools = document.getElementById(x+'-tools');
-            if(tools) tools.style.display = m===x?'flex':'none'; 
+            if(tools) tools.style.display = m===x?'flex':'none';
         });
-        document.getElementById('sim-canvas').style.cursor = 'default';
+        document.getElementById('sim-canvas').style.cursor = m === 'draw' ? 'crosshair' : 'default';
+    },
+
+    clearDrawing: function() { this.isDrawing = false; this.drawPoints = []; },
+
+    // Ramer-Douglas-Peucker: reduce a dense freehand stroke to its essential
+    // corners/curves so the resulting track path stays editable.
+    rdp: function(pts, epsilon) {
+        if (pts.length < 3) return pts.slice();
+        const perpDist = (p, a, b) => {
+            const dx = b.x-a.x, dy = b.y-a.y, len = Math.hypot(dx,dy);
+            if (len === 0) return Math.hypot(p.x-a.x, p.y-a.y);
+            const t = ((p.x-a.x)*dx + (p.y-a.y)*dy) / (len*len);
+            const cx = a.x + t*dx, cy = a.y + t*dy;
+            return Math.hypot(p.x-cx, p.y-cy);
+        };
+        let maxD = 0, idx = 0;
+        for (let i=1; i<pts.length-1; i++) {
+            const d = perpDist(pts[i], pts[0], pts[pts.length-1]);
+            if (d > maxD) { maxD = d; idx = i; }
+        }
+        if (maxD > epsilon) {
+            const left = this.rdp(pts.slice(0, idx+1), epsilon);
+            const right = this.rdp(pts.slice(idx), epsilon);
+            return left.slice(0, -1).concat(right);
+        }
+        return [pts[0], pts[pts.length-1]];
+    },
+
+    // Simplify a CLOSED freehand loop: naive RDP (first point -> last point as
+    // the baseline) collapses a loop almost to nothing since those two points
+    // are nearly coincident. Instead split the loop at its two most distant
+    // points into two open chains, simplify each independently, then rejoin.
+    simplifyClosedLoop: function(points, epsilon) {
+        let pts = points.slice();
+        if (pts.length > 1 && Math.hypot(pts[0].x-pts[pts.length-1].x, pts[0].y-pts[pts.length-1].y) < 20) pts.pop();
+        if (pts.length < 6) return pts;
+
+        let bestD = -1, bi = 0, bj = 1;
+        const step = Math.max(1, Math.floor(pts.length/150));
+        for (let i=0; i<pts.length; i+=step) for (let j=i+1; j<pts.length; j+=step) {
+            const d = (pts[i].x-pts[j].x)**2 + (pts[i].y-pts[j].y)**2;
+            if (d > bestD) { bestD = d; bi = i; bj = j; }
+        }
+        if (bi > bj) { const tmp = bi; bi = bj; bj = tmp; }
+
+        const chainA = pts.slice(bi, bj+1);
+        const chainB = pts.slice(bj).concat(pts.slice(0, bi+1));
+        const simpA = this.rdp(chainA, epsilon);
+        const simpB = this.rdp(chainB, epsilon);
+        let merged = simpA.slice(0, -1).concat(simpB.slice(0, -1));
+
+        // Safety cap: very detailed/jittery strokes can still leave too many
+        // points for wallsBySegment / the point-tools UI to stay comfortable.
+        const MAX_POINTS = 70;
+        if (merged.length > MAX_POINTS) {
+            const stride = Math.ceil(merged.length / MAX_POINTS);
+            merged = merged.filter((_, i) => i % stride === 0);
+        }
+        return merged;
+    },
+
+    finishDrawing: function() {
+        if (!this.isDrawing) return;
+        this.isDrawing = false;
+        const raw = this.drawPoints;
+        this.drawPoints = [];
+        if (raw.length < 4) return;
+
+        const simplified = this.simplifyClosedLoop(raw, 9);
+        if (simplified.length < 3) { alert('Draw a bigger loop — that stroke was too small to build a track from.'); return; }
+
+        // 'corner' (no bezier fillet) — with this many samples the polyline is
+        // already smooth on its own, and it sidesteps the fillet self-overlap
+        // risk that hit 'rounded' points here (see generateTrackFromPath).
+        this.track.path = simplified.map(p => ({ x: Math.round(p.x), y: Math.round(p.y), type: 'corner', radius: 35 }));
+        // Re-derive a concrete start pos/angle from the new path (the old ones
+        // belonged to whatever shape was there before) — computed once now
+        // rather than left null, since save() reads track.startPos.x directly.
+        const derived = generateTrackFromPath(this.track.id, this.track.name, this.track.path, this.track.trackWidth);
+        this.track.startPos = derived.startPos;
+        this.track.startAngle = derived.startAngle;
+        document.getElementById('edit-angle').value = Math.round((derived.startAngle || 0) * (180/Math.PI));
+        this.selectedIndex = null;
+        this.setMode('path');
     },
 
     updateZoneUI: function() {
@@ -1010,7 +1315,55 @@ const editor = {
         document.getElementById('code-output').value = code;
         document.getElementById('code-modal').classList.remove('hidden');
     },
-    cancel: function() { 
+
+    // "Publish" — best-effort community sharing with no backend of our own:
+    // opens a prefilled GitHub issue carrying the track as JSON. A repo
+    // GitHub Action (.github/workflows/import-track.yml) validates it and
+    // opens a PR to add it to tracks.js for everyone, once a maintainer merges.
+    publishTrack: function() {
+        const name = document.getElementById('edit-name').value || this.track.name || 'Custom Track';
+        this.track.name = name;
+        const cleanPath = this.track.path.map(p => ({
+            x: Math.round(p.x), y: Math.round(p.y),
+            type: p.type || 'rounded',
+            radius: p.radius !== undefined ? Math.round(p.radius) : 60
+        }));
+        const payload = {
+            id: 'community' + Date.now(),
+            name,
+            path: cleanPath,
+            trackWidth: Math.round(this.track.trackWidth),
+            startPos: { x: Math.round(this.track.startPos.x), y: Math.round(this.track.startPos.y) },
+            startAngle: Number((this.track.startAngle || 0).toFixed(4)),
+            zones: this.track.zones || []
+        };
+        const json = JSON.stringify(payload, null, 2);
+        const title = `[Track Submission] ${name}`;
+        const REPO = 'AZP3001/main';
+        const body = `Submitting a track built in the TrackML in-app editor.\n\nAn automated workflow will validate this and open a pull request to add it for everyone — no manual copy/paste needed. Please don't edit the JSON block below.\n\n\`\`\`json\n${json}\n\`\`\`\n`;
+
+        // GitHub's issue-prefill URL has a practical length limit — very large
+        // hand-edited tracks could overflow it. Fall back to clipboard + a
+        // blank prefilled issue (title/label only) rather than sending a
+        // broken/truncated link.
+        if (body.length > 6000) {
+            const blankUrl = `https://github.com/${REPO}/issues/new?title=${encodeURIComponent(title)}&labels=${encodeURIComponent('track-submission')}`;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(body).then(() => {
+                    alert('This track is large, so its JSON was copied to your clipboard instead of being pre-filled. A new GitHub issue tab is opening — paste the clipboard contents into the issue body and submit it.');
+                    window.open(blankUrl, '_blank', 'noopener');
+                }).catch(() => alert('This track is too large to publish via a link, and your browser blocked clipboard access. Try Save Track + the code export instead.'));
+            } else {
+                alert('This track is too large to publish via a link on this browser. Try Save Track + the code export instead.');
+            }
+            return;
+        }
+
+        const url = `https://github.com/${REPO}/issues/new?title=${encodeURIComponent(title)}&labels=${encodeURIComponent('track-submission')}&body=${encodeURIComponent(body)}`;
+        window.open(url, '_blank', 'noopener');
+    },
+
+    cancel: function() {
         app.state.isEditing = false; 
         document.getElementById('editor-controls').classList.add('hidden'); 
         const cv = document.getElementById('sim-canvas'); cv.onpointerdown = null; cv.onpointermove = null; cv.onpointerup = null; cv.onpointercancel = null;
@@ -1041,7 +1394,13 @@ const editor = {
 
     onDown: function(e) {
         const {x,y} = this.getPos(e);
-        
+
+        if (this.mode === 'draw') {
+            this.isDrawing = true;
+            this.drawPoints = [{x, y}];
+            return;
+        }
+
         if (this.mode === 'zones') {
             if(this.selectedZone && Math.hypot(x-(this.selectedZone.x+this.selectedZone.radius), y-this.selectedZone.y) < 30) { this.isResizingZone = true; return; }
             this.selectedZone = [...this.track.zones].reverse().find(z => Math.hypot(z.x-x, z.y-y) < z.radius) || null; 
@@ -1080,6 +1439,13 @@ const editor = {
 
     onMove: function(e) {
         const {x,y} = this.getPos(e);
+        if(this.mode === 'draw') {
+            if(this.isDrawing && (e.buttons === 1 || e.type==="touchmove")) {
+                const last = this.drawPoints[this.drawPoints.length-1];
+                if(!last || Math.hypot(x-last.x, y-last.y) > 4) this.drawPoints.push({x,y});
+            }
+            return;
+        }
         if(this.mode === 'zones') {
             if(this.selectedZone && (e.buttons === 1 || e.type==="touchmove")) {
                 if(this.isResizingZone) this.selectedZone.radius = Math.max(30, Math.hypot(x - this.selectedZone.x, y - this.selectedZone.y)); 
@@ -1126,6 +1492,19 @@ const editor = {
             if (z===this.selectedZone) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(z.x+z.radius, z.y, 8, 0, Math.PI*2); ctx.fill(); ctx.strokeStyle='#000'; ctx.lineWidth=2; ctx.stroke(); }
         });
 
+        if(this.mode === 'draw') {
+            if(this.isDrawing && this.drawPoints.length > 1) {
+                ctx.strokeStyle = '#22d3ee'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+                ctx.beginPath(); ctx.moveTo(this.drawPoints[0].x, this.drawPoints[0].y);
+                for(let i=1; i<this.drawPoints.length; i++) ctx.lineTo(this.drawPoints[i].x, this.drawPoints[i].y);
+                ctx.stroke();
+                ctx.fillStyle = '#22d3ee'; ctx.beginPath(); ctx.arc(this.drawPoints[0].x, this.drawPoints[0].y, 6, 0, Math.PI*2); ctx.fill();
+            } else if(!this.isDrawing) {
+                ctx.fillStyle = 'rgba(226,232,240,0.7)'; ctx.font = 'bold 18px sans-serif'; ctx.textAlign = 'center';
+                ctx.fillText('Click & drag to draw a track loop', CANVAS_WIDTH/2, CANVAS_HEIGHT/2);
+            }
+        }
+
         if(this.mode === 'path') {
             ctx.strokeStyle='#3b82f6'; ctx.lineWidth=2; ctx.setLineDash([5,5]); ctx.beginPath();
             if(this.track.path.length>0) { ctx.moveTo(this.track.path[0].x, this.track.path[0].y); for(let i=1; i<this.track.path.length; i++) ctx.lineTo(this.track.path[i].x, this.track.path[i].y); if(this.track.path.length>2) ctx.lineTo(this.track.path[0].x, this.track.path[0].y); }
@@ -1168,4 +1547,29 @@ function closeSidebar() {
 document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('sidebar-close-btn');
     if(btn) btn.onclick = closeSidebar;
+});
+
+// --- Keyboard shortcuts: Space=play/pause, H=hyper, R=reset, Esc=cancel edit/release spectate ---
+document.addEventListener('keydown', (e) => {
+    if (e.repeat) return;
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return; // don't hijack typing
+
+    if (app.state.isEditing) {
+        if (e.key === 'Escape') { e.preventDefault(); editor.cancel(); }
+        return;
+    }
+
+    switch (e.key) {
+        case ' ':
+        case 'Spacebar':
+            e.preventDefault(); app.toggleRun(); break;
+        case 'h': case 'H':
+            app.toggleHyper(); break;
+        case 'r': case 'R':
+            app.reset(); break;
+        case 'Escape':
+            if (app.state.spectateCarId !== null) app.releaseSpectate();
+            break;
+    }
 });
