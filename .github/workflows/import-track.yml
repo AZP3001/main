@@ -1,0 +1,75 @@
+name: Process Track Submission
+
+on:
+  issues:
+    types: [opened, labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  process:
+    if: contains(github.event.issue.labels.*.name, 'track-submission')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validate and apply submission
+        id: process
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: node scripts/process-track-submission.js
+
+      - name: Open pull request
+        if: steps.process.outputs.success == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "Add community track: ${{ steps.process.outputs.trackName }}"
+          branch: "track-submission-${{ github.event.issue.number }}"
+          title: "Add community track: ${{ steps.process.outputs.trackName }}"
+          body: |
+            Automated submission from issue #${{ github.event.issue.number }}, validated by
+            `scripts/process-track-submission.js` and appended to `tracks.js`.
+
+            A maintainer should give the track a quick look (drive it once) before merging.
+
+            Closes #${{ github.event.issue.number }}
+          labels: community-track
+          add-paths: tracks.js
+
+      - name: Comment on success
+        if: steps.process.outputs.success == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: "Thanks! Your track passed automated validation and a pull request has been opened to add it for everyone. A maintainer will take a quick look and merge it."
+            });
+
+      - name: Comment on failure
+        if: steps.process.outputs.success != 'true'
+        uses: actions/github-script@v7
+        env:
+          VALIDATION_ERROR: ${{ steps.process.outputs.error }}
+        with:
+          script: |
+            const err = process.env.VALIDATION_ERROR || 'Unknown error.';
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `Sorry, this submission could not be validated automatically:\n\n\`\`\`\n${err}\n\`\`\`\n\nPlease re-export the track using the "Publish Track" button in the app (so the JSON block is well-formed) and open a new issue.`
+            });
