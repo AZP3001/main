@@ -10,25 +10,25 @@
     <script src="./external/chart.js"></script>
     <link rel="stylesheet" href="styles.css">
 </head>
-<body class="flex flex-col lg:flex-row h-screen w-screen relative" style="height:100dvh">
+<body class="flex flex-col xl:flex-row h-screen w-screen relative" style="height:100dvh">
 
     <div id="sidebar-overlay" onclick="closeSidebar()"></div>
 
-    <div class="lg:hidden bg-slate-800 px-4 py-3 flex justify-between items-center border-b border-slate-700 z-40 relative shrink-0">
+    <div class="xl:hidden bg-slate-800 px-4 py-3 flex justify-between items-center border-b border-slate-700 z-40 relative shrink-0">
         <h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">TrackML</h1>
         <button onclick="openSidebar()" class="text-slate-300 hover:text-white bg-slate-700 rounded-lg px-3 py-2 flex items-center gap-2 text-sm font-bold">
             <i data-lucide="settings" class="w-4 h-4"></i> Settings
         </button>
     </div>
 
-    <div id="sidebar" class="w-full lg:w-80 bg-slate-800 p-4 flex flex-col border-r border-slate-700 overflow-y-auto shrink-0 custom-scrollbar shadow-xl">
-        <div class="lg:hidden flex justify-between items-center mb-4 pb-3 border-b border-slate-700">
+    <div id="sidebar" class="w-full xl:w-80 bg-slate-800 p-4 flex flex-col border-r border-slate-700 overflow-y-auto shrink-0 custom-scrollbar shadow-xl">
+        <div class="xl:hidden flex justify-between items-center mb-4 pb-3 border-b border-slate-700">
             <h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">TrackML</h1>
             <button id="sidebar-close-btn" onclick="closeSidebar()" class="text-slate-400 hover:text-white bg-slate-700 rounded-lg p-2 flex items-center gap-1 text-sm font-bold">
                 <i data-lucide="x" class="w-4 h-4"></i> Close
             </button>
         </div>
-        <div class="hidden lg:flex justify-between items-center mb-4">
+        <div class="hidden xl:flex justify-between items-center mb-4">
 		<h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">TrackML V19.0<span class="text-xs text-slate-500 font-normal block">Draw/Import/Spectate + Perf</span>   <!-- Version -->
             </h1>
         </div>
@@ -121,7 +121,7 @@
         </div>
 
         <!-- Desktop Start/Hyper — hidden on mobile (they live in the control bar on mobile) -->
-        <div class="hidden lg:flex gap-2 mb-3">
+        <div class="hidden xl:flex gap-2 mb-3">
             <button id="btn-play" onclick="app.toggleRun()" class="flex-1 py-2 rounded-lg font-bold flex items-center justify-center gap-2 transition-all border text-sm bg-emerald-500/20 text-emerald-400 border-emerald-500/50 hover:bg-emerald-500/30">
                 <i data-lucide="play" class="w-4 h-4"></i> <span>Start</span>
             </button>
@@ -206,7 +206,7 @@
         <!-- CONTROL BAR -->
         <div class="flex items-center gap-3 bg-slate-800 p-2 md:p-3 rounded-xl border border-slate-700 shrink-0 shadow-lg z-10">
             <!-- Start/Hyper/Reset: mobile only (desktop has them in sidebar) -->
-            <div class="flex items-center gap-2 lg:hidden">
+            <div class="flex items-center gap-2 xl:hidden">
                 <button id="btn-play-m" onclick="app.toggleRun()" class="px-3 py-2 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all border text-sm bg-emerald-500/20 text-emerald-400 border-emerald-500/50 hover:bg-emerald-500/30">
                     <i data-lucide="play" class="w-4 h-4"></i> <span>Start</span>
                 </button>
@@ -233,7 +233,7 @@
         </div>
 
         <!-- LAP TIMES PANEL: mobile only -->
-        <div id="lap-panel" class="lg:hidden flex items-center gap-3 bg-slate-800/70 rounded-xl px-3 py-2 border border-slate-700 shrink-0">
+        <div id="lap-panel" class="xl:hidden flex items-center gap-3 bg-slate-800/70 rounded-xl px-3 py-2 border border-slate-700 shrink-0">
             <div class="flex flex-col shrink-0">
                 <span class="text-[9px] text-slate-500 uppercase tracking-wide font-bold leading-none mb-0.5">Best</span>
                 <span id="stat-all-best-m" class="text-sm font-mono text-purple-400 leading-none">--</span>
@@ -244,7 +244,7 @@
             </div>
         </div>
 
-        <div id="editor-controls" class="hidden absolute top-20 left-6 right-6 z-50 bg-slate-800 p-3 rounded-lg border border-slate-700 shadow-2xl flex justify-between items-center flex-wrap gap-2">
+        <div id="editor-controls" class="hidden absolute top-2 left-2 right-2 md:top-20 md:left-6 md:right-6 z-50 bg-slate-800 p-2 md:p-3 rounded-lg border border-slate-700 shadow-2xl flex justify-between items-center flex-wrap gap-2">
             <div class="flex items-center gap-4 flex-wrap">
                 <input id="edit-name" type="text" class="bg-slate-700 border border-slate-600 rounded px-3 py-1 text-sm md:text-lg font-bold text-white w-32 md:w-48" placeholder="Track Name">
                 <div class="flex bg-slate-700 rounded p-1 gap-1">
@@ -351,7 +351,7 @@
             </div>
         </div>
 
-        <div class="h-28 md:h-36 bg-slate-800 rounded-xl p-2 border border-slate-700 shrink-0 relative hidden lg:block">
+        <div class="h-28 md:h-36 bg-slate-800 rounded-xl p-2 border border-slate-700 shrink-0 relative hidden xl:block">
             <canvas id="fitness-chart"></canvas>
         </div>
     </div>

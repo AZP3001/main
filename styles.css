@@ -13,7 +13,12 @@ body { background-color: #0f172a; color: white; overflow: hidden; margin: 0; fon
         #sidebar { transition: transform 0.3s ease-in-out; z-index: 50; }
         #sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 49; backdrop-filter: blur(2px); }
         #sidebar-overlay.show { display: block; }
-        @media (max-width: 1024px) {
+        /* Matches the xl: breakpoint used throughout index.html (1280px) —
+           was 1024px (lg:), which put tablets in landscape (iPad etc, usually
+           1024-1194px wide) into the "desktop" layout: a persistent 320px
+           sidebar plus a fixed-height chart panel, both crammed onto a small
+           screen and leaving little room for the actual track canvas. */
+        @media (max-width: 1279px) {
             #sidebar { position: fixed; top: 0; left: 0; height: 100%; height: 100dvh; width: min(85vw, 340px); transform: translateX(-105%); overflow-y: auto; }
             #sidebar.open { transform: translateX(0); box-shadow: 4px 0 30px rgba(0,0,0,0.5); }
         }
