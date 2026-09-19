@@ -50,6 +50,12 @@ function generateTrackFromPath(id, name, pathInput, width, customStartPos, custo
 
         let type = curr.type || 'rounded';
         let radius = curr.radius !== undefined ? curr.radius : 60;
+        // A fillet tighter than the track's own half-width is geometrically
+        // impossible to offset cleanly — the inner wall is forced past the
+        // outer wall partway round the arc, flipping the road polygon inside
+        // out (a dark wedge cut into the track surface). Floor it so the
+        // inside of any curve can always physically fit the track.
+        if (type !== 'corner') radius = Math.max(radius, width / 2 + 4);
 
         if (type === 'corner' || radius <= 0) {
             smoothedPath.push(curr);
@@ -108,12 +114,34 @@ function generateTrackFromPath(id, name, pathInput, width, customStartPos, custo
         // right at the corner, and a false wall collision for cars driving through).
         // Raising the floor + tightening the final clamp keeps the join continuous
         // (same formula, just saturates earlier) while capping the spike hard.
-        let miterLen = width / Math.max(0.42, dot);
-        let maxMiter = Math.min(Math.hypot(curr.x-prev.x, curr.y-prev.y), Math.hypot(next.x-curr.x, next.y-curr.y)) * 0.8;
-        miterLen = Math.min(miterLen, maxMiter, width * 1.2);
+        let baseMiterLen = width / Math.max(0.42, dot);
+        // maxMiter only needs to stop a spike overshooting past a genuinely
+        // sharp, isolated corner with short segments either side (e.g. a tight
+        // hand-placed zig-zag) — curvatureRadius below is what actually keeps
+        // a smooth filleted arc safe. A fillet's own subdivision packs points
+        // as little as 10-15px apart, so the old 0.8x factor made maxMiter the
+        // binding (and far too aggressive) constraint along nearly every
+        // curve, crushing the track width well below its intended value even
+        // on gentle bends.
+        let maxMiter = Math.min(Math.hypot(curr.x-prev.x, curr.y-prev.y), Math.hypot(next.x-curr.x, next.y-curr.y)) * 3.0;
+        // Hard safety net: an offset curve can never be inset further than its
+        // own local radius of curvature without flipping inside-out (a dark
+        // wedge cut into the road, and false wall collisions) — this happens
+        // whenever a 'rounded' point's fillet radius, or the tangent-length it
+        // gets squeezed to by nearby points, ends up tighter than the track's
+        // own half-width. Bounding by the densePath's actual local curvature
+        // (circumradius of prev/curr/next) catches that regardless of cause.
+        const cSide1 = Math.hypot(curr.x-next.x, curr.y-next.y), cSide2 = Math.hypot(prev.x-next.x, prev.y-next.y), cSide3 = Math.hypot(prev.x-curr.x, prev.y-curr.y);
+        const cArea2 = Math.abs((curr.x-prev.x)*(next.y-prev.y) - (next.x-prev.x)*(curr.y-prev.y));
+        const curvatureRadius = cArea2 > 1e-6 ? (cSide1*cSide2*cSide3) / (2*cArea2) : Infinity;
+        const outerMiterLen = Math.min(baseMiterLen, maxMiter, width * 1.2);
+        const innerMiterLen = Math.min(outerMiterLen, curvatureRadius);
+        const turnCross = dx1*dy2 - dy1*dx2;
+        const leftMiterLen = turnCross >= 0 ? innerMiterLen : outerMiterLen;
+        const rightMiterLen = turnCross >= 0 ? outerMiterLen : innerMiterLen;
 
-        leftPoly.push({ x: curr.x + nx * miterLen, y: curr.y + ny * miterLen });
-        rightPoly.push({ x: curr.x - nx * miterLen, y: curr.y - ny * miterLen });
+        leftPoly.push({ x: curr.x + nx * leftMiterLen, y: curr.y + ny * leftMiterLen });
+        rightPoly.push({ x: curr.x - nx * rightMiterLen, y: curr.y - ny * rightMiterLen });
     }
 
     for(let i=0; i < len; i++) {
