@@ -76,7 +76,14 @@ const ImageImport = {
             alert('That track shape was too small or simple to build a track from.');
             return;
         }
-        const path = simplified.map(p => ({ x: Math.round(p.x), y: Math.round(p.y), type: 'corner', radius: 35 }));
+        // Same thinning the Draw tool does: leave each vertex enough straight
+        // either side for the generator to fit a real corner arc into.
+        const spaced = editor.spaceOutPoints(simplified, Math.max(18, trackWidth * 1.1));
+        if (spaced.length < 3) {
+            alert('That track shape was too small or simple to build a track from.');
+            return;
+        }
+        const path = spaced.map(p => ({ x: Math.round(p.x), y: Math.round(p.y), type: 'corner', radius: 35 }));
 
         const t = generateTrackFromPath('img' + Date.now(), 'Imported Track', path, trackWidth);
         app.state.isEditing = true;

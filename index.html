@@ -29,7 +29,7 @@
             </button>
         </div>
         <div class="hidden xl:flex justify-between items-center mb-4">
-		<h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">TrackML V19.0<span class="text-xs text-slate-500 font-normal block">Draw/Import/Spectate + Perf</span>   <!-- Version -->
+		<h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">TrackML V20.0<span class="text-xs text-slate-500 font-normal block">Rebuilt track geometry</span>   <!-- Version -->
             </h1>
         </div>
 
@@ -305,8 +305,8 @@
                     <!-- Point Settings -->
                     <div id="point-tools" class="hidden items-center gap-2 border-l border-slate-600 pl-2 md:pl-4">
                         <div class="flex bg-slate-900 rounded p-1 gap-1">
-                            <button id="btn-pt-corner" onclick="editor.updatePointType('corner')" class="px-2 py-1 text-[10px] rounded text-slate-400 hover:bg-slate-700 transition-colors">Corner</button>
-                            <button id="btn-pt-rounded" onclick="editor.updatePointType('rounded')" class="px-2 py-1 text-[10px] rounded bg-blue-600 text-white transition-colors">Rounded</button>
+                            <button id="btn-pt-corner" title="Tightest turn the track width still allows" onclick="editor.updatePointType('corner')" class="px-2 py-1 text-[10px] rounded text-slate-400 hover:bg-slate-700 transition-colors">Corner</button>
+                            <button id="btn-pt-rounded" title="Turn of the radius set below (never tighter than the track is wide)" onclick="editor.updatePointType('rounded')" class="px-2 py-1 text-[10px] rounded bg-blue-600 text-white transition-colors">Rounded</button>
                         </div>
                         <div id="radius-container" class="flex flex-col w-16 md:w-20">
                             <div class="flex justify-between text-[8px] md:text-[10px] text-slate-400">

@@ -30,134 +30,383 @@ const SETTING_DESCRIPTIONS = {
 function lerp(a, b, t) { return a + (b - a) * t; }
 
 // --- Track Generator ---
-function generateTrackFromPath(id, name, pathInput, width, customStartPos, customStartAngle, zones = []) {
-    const walls = []; const checkpoints = []; const leftPoly = []; const rightPoly = [];
-    const emptyResult = { id, name, path: pathInput || [], trackWidth: width, walls: [], checkpoints: [], startPos: {x:100,y:100}, startAngle: 0, zones: zones||[], leftPoly, rightPoly };
+//
+// GEOMETRY MODEL
+// The road surface is *defined* as "every point within `width` of the
+// centreline" — exactly the shape ctx.stroke() paints with lineWidth = width*2
+// and a round cap/join. (`width` has always been the HALF-width in this
+// project's track data, so that stays.) The barriers are then simply the
+// boundary of that shape, traced as one continuous outline per side.
+//
+// The old generator instead emitted one left point and one right point per
+// centreline sample from a miter formula wrapped in a pile of clamps, and
+// chained those into walls. That's where the reported bugs came from:
+//   * the clamps silently pulled the offsets in, so the road randomly got
+//     narrower than asked for ("thin curves nothing fits through");
+//   * on any turn tighter than the road is wide, the inner offset looped back
+//     through itself, leaving wall segments sitting *inside* the track and
+//     bending the asphalt inside-out at corners.
+// Offsetting properly — round joins on the outside of a turn, a true miter on
+// the inside — and then throwing away offset points that ended up closer to the
+// centreline than the road is wide kills both classes of bug by construction:
+// the road is exactly width*2 across everywhere, and no wall can lie inside it.
 
-    if (!pathInput || pathInput.length < 3) return emptyResult;
-    
-    let path = [...pathInput];
-    let start = path[0], end = path[path.length - 1];
-    if (Math.hypot(start.x - end.x, start.y - end.y) < 5) path.pop(); 
-    if(path.length < 3) return emptyResult;
+const TRACK_MAX_SEG = 30;      // max centreline sample spacing, px
+const TRACK_CP_SPACING = 34;   // spacing between checkpoint gates, px
+const TRACK_WALL_MAXLEN = 110; // longest wall segment the simplifier may emit, px
 
-    // --- CORNER ROUNDING (BEZIER FILLET) ---
-    let smoothedPath = [];
-    for(let i = 0; i < path.length; i++) {
-        let curr = path[i];
-        let prev = path[(i - 1 + path.length) % path.length];
-        let next = path[(i + 1) % path.length];
+// How much of the road these approximations are allowed to eat. Arcs get
+// flattened into line segments and near-collinear walls get merged, and both
+// shave a sliver off the inside of a curve — so the budget scales with the
+// track width rather than being a fixed pixel count, otherwise a 20px-wide
+// track loses a tenth of its road to the same 2px of slack a 180px one
+// wouldn't notice.
+function _trackTol(dist) {
+    const t = dist * 0.015;
+    return { flat: Math.max(0.15, Math.min(0.6, t)), sag: Math.max(0.2, Math.min(0.9, t * 1.5)) };
+}
 
-        let type = curr.type || 'rounded';
-        let radius = curr.radius !== undefined ? curr.radius : 60;
-        // A fillet tighter than the track's own half-width is geometrically
-        // impossible to offset cleanly — the inner wall is forced past the
-        // outer wall partway round the arc, flipping the road polygon inside
-        // out (a dark wedge cut into the track surface). Floor it so the
-        // inside of any curve can always physically fit the track.
-        if (type !== 'corner') radius = Math.max(radius, width / 2 + 4);
+function _pointSegDist2(px, py, ax, ay, bx, by) {
+    const dx = bx - ax, dy = by - ay;
+    const l2 = dx * dx + dy * dy;
+    let t = l2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / l2 : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const ex = px - (ax + t * dx), ey = py - (ay + t * dy);
+    return ex * ex + ey * ey;
+}
 
-        if (type === 'corner' || radius <= 0) {
-            smoothedPath.push(curr);
+// Uniform bucket grid over the centreline segments. Cell size is the offset
+// distance, so "is this point closer to the road's middle than the road is
+// wide?" only ever has to look at the 3x3 cells around it.
+function _buildCentreGrid(pts, cell) {
+    const map = new Map(), n = pts.length;
+    for (let i = 0; i < n; i++) {
+        const a = pts[i], b = pts[(i + 1) % n];
+        const x0 = Math.floor(Math.min(a.x, b.x) / cell), x1 = Math.floor(Math.max(a.x, b.x) / cell);
+        const y0 = Math.floor(Math.min(a.y, b.y) / cell), y1 = Math.floor(Math.max(a.y, b.y) / cell);
+        for (let gx = x0; gx <= x1; gx++) for (let gy = y0; gy <= y1; gy++) {
+            const k = gx + ',' + gy;
+            let bucket = map.get(k);
+            if (!bucket) { bucket = []; map.set(k, bucket); }
+            bucket.push(i);
+        }
+    }
+    return { map, cell, pts };
+}
+
+// Squared distance from a point to the nearest centreline segment. Anything
+// farther away than one cell reads as Infinity, which is all callers need —
+// they only ever compare the result against the offset distance.
+function _centreDist2(grid, px, py) {
+    const cell = grid.cell, pts = grid.pts, n = pts.length;
+    const gx = Math.floor(px / cell), gy = Math.floor(py / cell);
+    let best = Infinity;
+    for (let ix = gx - 1; ix <= gx + 1; ix++) for (let iy = gy - 1; iy <= gy + 1; iy++) {
+        const bucket = grid.map.get(ix + ',' + iy);
+        if (!bucket) continue;
+        for (let k = 0; k < bucket.length; k++) {
+            const i = bucket[k], a = pts[i], b = pts[(i + 1) % n];
+            const d2 = _pointSegDist2(px, py, a.x, a.y, b.x, b.y);
+            if (d2 < best) best = d2;
+        }
+    }
+    return best;
+}
+
+// Turn the hand-placed / drawn control points into a smooth drivable centreline
+// by replacing every vertex with a true circular arc (constant radius, unlike
+// the old quadratic-bezier fillet whose curvature spiked in the middle).
+//
+// Two rules keep the result drivable, which is the other half of the "corners
+// are sharp 30-degree dead ends / curves go stupidly thin" complaint:
+//   * every vertex gets at least `minRadius`, so a turn can never be tighter
+//     than the road is wide — a 'corner' point is now the *tightest* turn the
+//     track width allows rather than a spike;
+//   * neighbouring arcs share out the straight between them, so two close-
+//     together points can't each grab tangent length and collapse the bit in
+//     the middle into a kink.
+function buildCentreline(path, width) {
+    const n = path.length;
+    const minRadius = width * 1.1 + 4;
+    const tol = _trackTol(width);
+    const V = new Array(n);
+
+    for (let i = 0; i < n; i++) {
+        const curr = path[i], prev = path[(i - 1 + n) % n], next = path[(i + 1) % n];
+        let ax = prev.x - curr.x, ay = prev.y - curr.y; const al = Math.hypot(ax, ay);
+        let bx = next.x - curr.x, by = next.y - curr.y; const bl = Math.hypot(bx, by);
+        if (al < 1e-6 || bl < 1e-6) { V[i] = null; continue; }
+        ax /= al; ay /= al; bx /= bl; by /= bl;
+        let cos = ax * bx + ay * by; cos = cos < -1 ? -1 : cos > 1 ? 1 : cos;
+        const phi = Math.acos(cos);            // interior angle at this vertex
+        const turn = Math.PI - phi;            // how far the heading swings through it
+        const asked = path[i].radius !== undefined ? path[i].radius : 60;
+        const want = path[i].type === 'corner' ? minRadius : Math.max(asked, minRadius);
+        let T = 0;
+        if (turn > 0.02) T = Math.min(5000, want / Math.max(1e-4, Math.tan(phi / 2)));
+        const cross = (-ax) * by - (-ay) * bx; // which way the heading turns here
+        V[i] = { ax, ay, bx, by, phi, turn, T, sign: cross >= 0 ? 1 : -1, lb: bl };
+    }
+
+    // Share the straight between two neighbouring arcs so they never overlap.
+    for (let pass = 0; pass < 4; pass++) {
+        for (let i = 0; i < n; i++) {
+            const a = V[i], b = V[(i + 1) % n];
+            if (!a || !b) continue;
+            const sum = a.T + b.T, room = a.lb * 0.98;
+            if (sum > room && sum > 1e-6) { const s = room / sum; a.T *= s; b.T *= s; }
+        }
+    }
+
+    const out = [];
+    const push = (x, y) => {
+        const p = out[out.length - 1];
+        if (!p || Math.hypot(x - p.x, y - p.y) > 0.25) out.push({ x, y });
+    };
+    for (let i = 0; i < n; i++) {
+        const v = V[i], c = path[i];
+        if (!v) continue;
+        if (v.T < 0.75 || v.turn <= 0.02) { push(c.x, c.y); continue; }
+        const r = v.T * Math.tan(v.phi / 2);
+        const Ax = c.x + v.ax * v.T, Ay = c.y + v.ay * v.T;  // tangent point, incoming leg
+        const Bx = c.x + v.bx * v.T, By = c.y + v.by * v.T;  // tangent point, outgoing leg
+        if (!(r > 0.5)) { push(Ax, Ay); push(Bx, By); continue; }
+        // Arc centre sits r from the incoming tangent point, square to the
+        // incoming heading, on whichever side the path turns toward.
+        const hx = -v.ax, hy = -v.ay;
+        const ox = Ax + (-hy) * v.sign * r, oy = Ay + hx * v.sign * r;
+        const a0 = Math.atan2(Ay - oy, Ax - ox);
+        const sweep = v.sign * v.turn;
+        const step = Math.max(0.06, Math.min(0.5, 2 * Math.acos(Math.max(0, 1 - tol.flat / r))));
+        const steps = Math.max(2, Math.ceil(Math.abs(sweep) / step));
+        for (let k = 0; k <= steps; k++) {
+            const a = a0 + sweep * (k / steps);
+            push(ox + Math.cos(a) * r, oy + Math.sin(a) * r);
+        }
+        push(Bx, By);
+    }
+    if (out.length > 1) {
+        const first = out[0], last = out[out.length - 1];
+        if (Math.hypot(first.x - last.x, first.y - last.y) < 0.25) out.pop();
+    }
+    if (out.length < 3) return out;
+
+    // Even spacing keeps the offset trim below honest: a long straight chord
+    // has no sample points on it, so nothing would notice another part of the
+    // track crossing it.
+    const dense = [];
+    // Never step further than roughly the road is wide: the offset trim below
+    // spots a crossing part of the track by the samples sitting on it, so a
+    // narrow track needs correspondingly fine samples.
+    const maxSeg = Math.max(8, Math.min(TRACK_MAX_SEG, width * 1.2));
+    for (let i = 0; i < out.length; i++) {
+        const p = out[i], q = out[(i + 1) % out.length];
+        const d = Math.hypot(q.x - p.x, q.y - p.y);
+        const steps = Math.max(1, Math.ceil(d / maxSeg));
+        for (let k = 0; k < steps; k++) dense.push({ x: lerp(p.x, q.x, k / steps), y: lerp(p.y, q.y, k / steps) });
+    }
+    return dense;
+}
+
+// One side of the raw offset outline. `side` is +1 for the left of travel,
+// -1 for the right. Outside-of-turn joins get a real arc (so the barrier hugs
+// the same rounded corner the asphalt has, instead of a miter spike that used
+// to shoot out to several times the track width); inside-of-turn joins get the
+// miter point, which is what keeps the road its full width through a corner.
+function offsetOutline(pts, dist, side) {
+    const n = pts.length, raw = [];
+    const arcStep = Math.max(0.08, Math.min(0.5, 2 * Math.acos(Math.max(0, 1 - _trackTol(dist).flat / dist))));
+    for (let i = 0; i < n; i++) {
+        const prev = pts[(i - 1 + n) % n], curr = pts[i], next = pts[(i + 1) % n];
+        let ix = curr.x - prev.x, iy = curr.y - prev.y; const il = Math.hypot(ix, iy);
+        let ox = next.x - curr.x, oy = next.y - curr.y; const ol = Math.hypot(ox, oy);
+        if (il < 1e-6 || ol < 1e-6) continue;
+        ix /= il; iy /= il; ox /= ol; oy /= ol;
+        const n1x = -iy * side, n1y = ix * side;
+        const n2x = -oy * side, n2y = ox * side;
+        const cross = ix * oy - iy * ox;
+        const dot = ix * ox + iy * oy;
+        if (cross * side < -1e-9) {
+            const a0 = Math.atan2(n1y, n1x);
+            let sweep = Math.atan2(n2y, n2x) - a0;
+            while (sweep > Math.PI) sweep -= Math.PI * 2;
+            while (sweep < -Math.PI) sweep += Math.PI * 2;
+            const steps = Math.max(1, Math.ceil(Math.abs(sweep) / arcStep));
+            for (let k = 0; k <= steps; k++) {
+                const a = a0 + sweep * (k / steps);
+                raw.push({ x: curr.x + Math.cos(a) * dist, y: curr.y + Math.sin(a) * dist, ci: i });
+            }
         } else {
-            let d1x = prev.x - curr.x, d1y = prev.y - curr.y, len1 = Math.hypot(d1x, d1y);
-            let d2x = next.x - curr.x, d2y = next.y - curr.y, len2 = Math.hypot(d2x, d2y);
-            if (len1 < 1 || len2 < 1) { smoothedPath.push(curr); continue; }
-
-            let n1x = d1x/len1, n1y = d1y/len1;
-            let n2x = d2x/len2, n2y = d2y/len2;
-            let dot = n1x*n2x + n1y*n2y;
-            let angle = Math.acos(Math.max(-1, Math.min(1, dot)));
-            
-            let T = radius * Math.abs(Math.tan((Math.PI - angle) / 2));
-            let maxT = Math.min(len1 / 2.1, len2 / 2.1);
-            if (T > maxT || isNaN(T)) T = maxT;
-
-            let Ax = curr.x + n1x*T, Ay = curr.y + n1y*T;
-            let Bx = curr.x + n2x*T, By = curr.y + n2y*T;
-
-            let steps = Math.max(3, Math.ceil(T / 15)); 
-            for(let t = 0; t <= steps; t++) {
-                let ratio = t/steps, mt = 1-ratio;
-                smoothedPath.push({
-                    x: mt*mt*Ax + 2*mt*ratio*curr.x + ratio*ratio*Bx,
-                    y: mt*mt*Ay + 2*mt*ratio*curr.y + ratio*ratio*By
-                });
+            const m = 1 + dot;
+            if (m > 0.08) {
+                const k = dist / m;
+                raw.push({ x: curr.x + (n1x + n2x) * k, y: curr.y + (n1y + n2y) * k, ci: i });
+            } else {
+                // Doubling back on itself — a miter here would run off to
+                // infinity, so bevel and let the trim below sort it out.
+                raw.push({ x: curr.x + n1x * dist, y: curr.y + n1y * dist, ci: i });
+                raw.push({ x: curr.x + n2x * dist, y: curr.y + n2y * dist, ci: i });
             }
         }
     }
+    return raw;
+}
 
-    let densePath = [];
-    for(let i=0; i<smoothedPath.length; i++) {
-        let p1 = smoothedPath[i], p2 = smoothedPath[(i+1)%smoothedPath.length];
-        let dist = Math.hypot(p2.x-p1.x, p2.y-p1.y);
-        let steps = Math.max(1, Math.ceil(dist / 40));
-        for(let j=0; j<steps; j++) {
-            densePath.push({ x: lerp(p1.x, p2.x, j/steps), y: lerp(p1.y, p2.y, j/steps) });
+// Drop every offset point that landed inside the road (that only happens where
+// the outline folded back through itself) and chain what's left into walls.
+function trimOutlineToWalls(raw, grid, dist) {
+    const walls = [];
+    const insideLimit = (dist - 0.75) * (dist - 0.75);
+    const keep = [];
+    for (let i = 0; i < raw.length; i++) {
+        if (_centreDist2(grid, raw[i].x, raw[i].y) >= insideLimit) keep.push({ p: raw[i], i });
+    }
+    const m = keep.length;
+    if (m < 3) return walls;
+
+    for (let k = 0; k < m; k++) {
+        const a = keep[k], b = keep[(k + 1) % m];
+        const dx = b.p.x - a.p.x, dy = b.p.y - a.p.y;
+        const segLen = Math.hypot(dx, dy);
+        const bridged = (b.i - a.i + raw.length) % raw.length !== 1;
+        if (bridged && segLen > dist) {
+            // Joining the two survivors straight across is right for a corner
+            // whose inside edge got trimmed, but wrong where the track crosses
+            // or touches itself — there the chord would wall off open road.
+            let cuts = false;
+            for (let s = 1; s <= 3 && !cuts; s++) {
+                const t = s / 4;
+                if (_centreDist2(grid, a.p.x + dx * t, a.p.y + dy * t) < dist * dist * 0.3) cuts = true;
+            }
+            if (cuts) continue;
+        }
+        walls.push({ p1: { x: a.p.x, y: a.p.y }, p2: { x: b.p.x, y: b.p.y }, ci: a.p.ci });
+    }
+    return walls;
+}
+
+// Collapse runs of near-collinear wall segments (straights mostly) so the
+// collision/sensor loops aren't walking hundreds of 20px stubs.
+function simplifyWalls(walls, sag) {
+    const out = [];
+    const sag2 = sag * sag;
+    let dropped = [];   // points the current merged run has swallowed so far
+    for (let i = 0; i < walls.length; i++) {
+        const w = walls[i], last = out[out.length - 1];
+        if (last && last.p2.x === w.p1.x && last.p2.y === w.p1.y) {
+            const merged = Math.hypot(w.p2.x - last.p1.x, w.p2.y - last.p1.y);
+            if (merged <= TRACK_WALL_MAXLEN) {
+                // Every point the run has dropped, not just the newest one, has
+                // to stay within `sag` of the merged chord — otherwise the error
+                // creeps up over a long run and quietly narrows the road.
+                let ok = true;
+                for (let k = 0; k < dropped.length && ok; k++) {
+                    if (_pointSegDist2(dropped[k].x, dropped[k].y, last.p1.x, last.p1.y, w.p2.x, w.p2.y) > sag2) ok = false;
+                }
+                if (ok && _pointSegDist2(w.p1.x, w.p1.y, last.p1.x, last.p1.y, w.p2.x, w.p2.y) <= sag2) {
+                    dropped.push(w.p1);
+                    last.p2 = w.p2;
+                    continue;
+                }
+            }
+        }
+        dropped = [];
+        out.push({ p1: w.p1, p2: w.p2, ci: w.ci });
+    }
+    return out;
+}
+
+function generateTrackFromPath(id, name, pathInput, width, customStartPos, customStartAngle, zones = []) {
+    const emptyResult = { id, name, path: pathInput || [], trackWidth: width, walls: [], checkpoints: [], startPos: { x: 100, y: 100 }, startAngle: 0, zones: zones || [], centerline: [], segStep: TRACK_CP_SPACING };
+    if (!pathInput || pathInput.length < 3) return emptyResult;
+
+    const path = [];
+    for (const p of pathInput) {
+        const prev = path[path.length - 1];
+        if (!prev || Math.hypot(p.x - prev.x, p.y - prev.y) > 1) path.push(p);
+    }
+    if (path.length > 2 && Math.hypot(path[0].x - path[path.length - 1].x, path[0].y - path[path.length - 1].y) < 5) path.pop();
+    if (path.length < 3) return emptyResult;
+
+    const dist = Math.max(4, width);
+    const centerline = buildCentreline(path, dist);
+    if (centerline.length < 3) return emptyResult;
+
+    const len = centerline.length;
+    const grid = _buildCentreGrid(centerline, Math.max(dist, 16));
+
+    // --- checkpoint gates, evenly spaced along the centreline ---
+    const checkpoints = [];
+    const cpOfSample = new Int32Array(len);
+    let acc = TRACK_CP_SPACING;
+    for (let i = 0; i < len; i++) {
+        if (i > 0) acc += Math.hypot(centerline[i].x - centerline[i - 1].x, centerline[i].y - centerline[i - 1].y);
+        if (acc >= TRACK_CP_SPACING) {
+            acc -= TRACK_CP_SPACING;
+            const prev = centerline[(i - 1 + len) % len], next = centerline[(i + 1) % len];
+            let tx = next.x - prev.x, ty = next.y - prev.y;
+            const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+            const c = centerline[i];
+            checkpoints.push({
+                index: checkpoints.length,
+                p1: { x: c.x - ty * dist, y: c.y + tx * dist },
+                p2: { x: c.x + ty * dist, y: c.y - tx * dist },
+                center: { x: c.x, y: c.y }
+            });
+        }
+        cpOfSample[i] = checkpoints.length - 1;
+    }
+
+    // --- barriers: the boundary of the stroked road, trimmed of any fold-back ---
+    const walls = [];
+    for (const side of [1, -1]) {
+        const trimmed = simplifyWalls(trimOutlineToWalls(offsetOutline(centerline, dist, side), grid, dist), _trackTol(dist).sag);
+        for (const w of trimmed) {
+            const long = Math.hypot(w.p2.x - w.p1.x, w.p2.y - w.p1.y) > TRACK_WALL_MAXLEN + 10;
+            // Walls bucket by the checkpoint they sit beside so cars only test
+            // the ones near them; a long bridging chord doesn't belong to any
+            // one checkpoint, so leave it unbucketed (checked everywhere).
+            walls.push({ p1: w.p1, p2: w.p2, segmentIndex: long ? undefined : cpOfSample[w.ci] });
         }
     }
 
-    const len = densePath.length; 
-    for(let i=0; i<len; i++) {
-        const curr = densePath[i], prev = densePath[(i - 1 + len) % len], next = densePath[(i + 1) % len];
-        let dx1 = curr.x - prev.x, dy1 = curr.y - prev.y, d1 = Math.hypot(dx1, dy1); if(d1>0){ dx1/=d1; dy1/=d1; }
-        let dx2 = next.x - curr.x, dy2 = next.y - curr.y, d2 = Math.hypot(dx2, dy2); if(d2>0){ dx2/=d2; dy2/=d2; }
-        let tx = dx1 + dx2, ty = dy1 + dy2, tlen = Math.hypot(tx, ty);
-        let nx, ny; if (tlen < 0.001) { nx = -dy1; ny = dx1; } else { tx /= tlen; ty /= tlen; nx = -ty; ny = tx; }
-
-        let dot = (nx * (-dy1) + ny * dx1);
-        // BEVEL-JOIN FALLBACK (fixes "bugged corners"): the raw miter formula
-        // (width / dot) blows up on sharp turns — dot -> cos(turnAngle/2) -> 0 near
-        // a hairpin — and the old floor of 0.1 let it spike to 10x the track width
-        // on BOTH the outer and inner edge, so the inner offset polygon would shoot
-        // past the opposite boundary and self-intersect (a visible pinch/crossing
-        // right at the corner, and a false wall collision for cars driving through).
-        // Raising the floor + tightening the final clamp keeps the join continuous
-        // (same formula, just saturates earlier) while capping the spike hard.
-        let baseMiterLen = width / Math.max(0.42, dot);
-        // maxMiter only needs to stop a spike overshooting past a genuinely
-        // sharp, isolated corner with short segments either side (e.g. a tight
-        // hand-placed zig-zag) — curvatureRadius below is what actually keeps
-        // a smooth filleted arc safe. A fillet's own subdivision packs points
-        // as little as 10-15px apart, so the old 0.8x factor made maxMiter the
-        // binding (and far too aggressive) constraint along nearly every
-        // curve, crushing the track width well below its intended value even
-        // on gentle bends.
-        let maxMiter = Math.min(Math.hypot(curr.x-prev.x, curr.y-prev.y), Math.hypot(next.x-curr.x, next.y-curr.y)) * 3.0;
-        // Hard safety net: an offset curve can never be inset further than its
-        // own local radius of curvature without flipping inside-out (a dark
-        // wedge cut into the road, and false wall collisions) — this happens
-        // whenever a 'rounded' point's fillet radius, or the tangent-length it
-        // gets squeezed to by nearby points, ends up tighter than the track's
-        // own half-width. Bounding by the densePath's actual local curvature
-        // (circumradius of prev/curr/next) catches that regardless of cause.
-        const cSide1 = Math.hypot(curr.x-next.x, curr.y-next.y), cSide2 = Math.hypot(prev.x-next.x, prev.y-next.y), cSide3 = Math.hypot(prev.x-curr.x, prev.y-curr.y);
-        const cArea2 = Math.abs((curr.x-prev.x)*(next.y-prev.y) - (next.x-prev.x)*(curr.y-prev.y));
-        const curvatureRadius = cArea2 > 1e-6 ? (cSide1*cSide2*cSide3) / (2*cArea2) : Infinity;
-        const outerMiterLen = Math.min(baseMiterLen, maxMiter, width * 1.2);
-        const innerMiterLen = Math.min(outerMiterLen, curvatureRadius);
-        const turnCross = dx1*dy2 - dy1*dx2;
-        const leftMiterLen = turnCross >= 0 ? innerMiterLen : outerMiterLen;
-        const rightMiterLen = turnCross >= 0 ? outerMiterLen : innerMiterLen;
-
-        leftPoly.push({ x: curr.x + nx * leftMiterLen, y: curr.y + ny * leftMiterLen });
-        rightPoly.push({ x: curr.x - nx * rightMiterLen, y: curr.y - ny * rightMiterLen });
+    let finalStartPos = customStartPos ? { x: customStartPos.x, y: customStartPos.y } : { x: Math.round(centerline[0].x), y: Math.round(centerline[0].y) };
+    // A start point left sitting outside the asphalt spawns the whole field
+    // into a wall; pull it back onto the nearest bit of centreline if so.
+    if (customStartPos && _centreDist2(grid, finalStartPos.x, finalStartPos.y) > (dist * 0.9) * (dist * 0.9)) {
+        let best = 0, bestD = Infinity;
+        for (let i = 0; i < len; i++) {
+            const d = (centerline[i].x - finalStartPos.x) ** 2 + (centerline[i].y - finalStartPos.y) ** 2;
+            if (d < bestD) { bestD = d; best = i; }
+        }
+        finalStartPos = { x: Math.round(centerline[best].x), y: Math.round(centerline[best].y) };
     }
 
-    for(let i=0; i < len; i++) {
-        const i2 = (i+1)%len;
-        const w1 = { p1: leftPoly[i], p2: leftPoly[i2], segmentIndex: i }; walls.push(w1);
-        const w2 = { p1: rightPoly[i], p2: rightPoly[i2], segmentIndex: i }; walls.push(w2);
-        checkpoints.push({ index: i, p1: leftPoly[i], p2: rightPoly[i], center: densePath[i] });
-    }
-    
     let finalStartAngle = 0;
     if (customStartAngle !== undefined && customStartAngle !== null) finalStartAngle = customStartAngle;
-    else if (densePath.length > 1) finalStartAngle = Math.atan2(densePath[1].y - densePath[0].y, densePath[1].x - densePath[0].x);
+    else finalStartAngle = Math.atan2(centerline[1].y - centerline[0].y, centerline[1].x - centerline[0].x);
 
-    let finalStartPos = customStartPos || {x:Math.round(densePath[0].x), y:Math.round(densePath[0].y)};
-    
-    return { id, name, path: pathInput, trackWidth: width, walls, checkpoints, startPos: finalStartPos, startAngle: finalStartAngle, zones, leftPoly, rightPoly };
+    return { id, name, path: pathInput, trackWidth: width, walls, checkpoints, startPos: finalStartPos, startAngle: finalStartAngle, zones, centerline, segStep: TRACK_CP_SPACING };
+}
+
+// The asphalt is drawn as the centreline stroked at the full track width with a
+// round join/cap — i.e. literally the region the barriers bound, so the two can
+// never disagree. (The old quad-strip fill between the left/right offset points
+// left dark wedges wherever those offsets crossed each other on a tight turn.)
+function drawRoadSurface(ctx, t, color) {
+    const c = t.centerline;
+    if (!c || c.length < 2) return;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(2, t.trackWidth * 2);
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(c[0].x, c[0].y);
+    for (let i = 1; i < c.length; i++) ctx.lineTo(c[i].x, c[i].y);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
 }
 
 // --- LIGHTNING ZERO-ALLOCATION WEB WORKER ---
@@ -178,6 +427,13 @@ const workerScript = `
     function initTrackPrecomp() {
         if (!cachedTrack) return;
         const tSegs = cachedTrack.checkpoints.length;
+        // How many checkpoints back/forward a car has to look for walls. A
+        // sensor reaches 180px, so this has to cover that in *pixels* — derive
+        // it from the checkpoint spacing instead of hard-coding a count, which
+        // silently under-covered whenever the spacing changed.
+        const step = cachedTrack.segStep || 34;
+        const back = Math.max(4, Math.ceil(240 / step));
+        const fwd = Math.max(5, Math.ceil(260 / step));
         const bucket = new Array(tSegs);
         for (let i = 0; i < tSegs; i++) bucket[i] = [];
         const undefWalls = [];
@@ -188,7 +444,7 @@ const workerScript = `
         wallsBySegment = new Array(tSegs);
         for (let i = 0; i < tSegs; i++) {
             const set = new Set(undefWalls);
-            for (let j = -5; j <= 8; j++) {
+            for (let j = -back; j <= fwd; j++) {
                 const seg = (i + j + tSegs * 10) % tSegs;
                 for (const w of bucket[seg]) set.add(w);
             }
@@ -434,7 +690,7 @@ const Engine = {
     updateWorkerTrack: function(track, config) {
         const strippedWalls = track.walls.map(w => ({p1:{x:w.p1.x, y:w.p1.y}, p2:{x:w.p2.x, y:w.p2.y}, segmentIndex: w.segmentIndex}));
         const strippedCPs = track.checkpoints.map(c => ({index:c.index, p1:{x:c.p1.x, y:c.p1.y}, p2:{x:c.p2.x, y:c.p2.y}, center:{x:c.center.x, y:c.center.y}}));
-        const payload = { type: 'initTrack', track: { walls: strippedWalls, checkpoints: strippedCPs, zones: track.zones }, config };
+        const payload = { type: 'initTrack', track: { walls: strippedWalls, checkpoints: strippedCPs, zones: track.zones, segStep: track.segStep }, config };
         this.workers.forEach(w => w.postMessage(payload));
     },
     
@@ -763,13 +1019,7 @@ const app = {
         ctx.fillStyle = '#3a5a40'; ctx.fillRect(0,0,CANVAS_WIDTH,CANVAS_HEIGHT);
         if(!t) return;
 
-        if (t.leftPoly && t.rightPoly) {
-             ctx.fillStyle = '#343a40';
-             for(let i=0; i<t.leftPoly.length; i++) {
-                 const n = (i+1)%t.leftPoly.length; ctx.beginPath(); ctx.moveTo(t.leftPoly[i].x, t.leftPoly[i].y); ctx.lineTo(t.leftPoly[n].x, t.leftPoly[n].y);
-                 ctx.lineTo(t.rightPoly[n].x, t.rightPoly[n].y); ctx.lineTo(t.rightPoly[i].x, t.rightPoly[i].y); ctx.fill();
-             }
-        }
+        drawRoadSurface(ctx, t, '#343a40');
         
         // Zones are intentionally NOT rendered in normal view — only visible in the editor
 
@@ -1211,6 +1461,20 @@ const editor = {
         return merged;
     },
 
+    // Drop points that sit closer than `minGap` to the last one kept, so every
+    // vertex has enough straight either side to fit a proper corner arc.
+    spaceOutPoints: function(pts, minGap) {
+        if (pts.length < 4) return pts.slice();
+        const out = [pts[0]];
+        for (let i = 1; i < pts.length; i++) {
+            const last = out[out.length - 1];
+            if (Math.hypot(pts[i].x - last.x, pts[i].y - last.y) >= minGap) out.push(pts[i]);
+        }
+        // The wrap-around back to the first point needs the same clearance.
+        while (out.length > 3 && Math.hypot(out[out.length - 1].x - out[0].x, out[out.length - 1].y - out[0].y) < minGap) out.pop();
+        return out.length >= 3 ? out : pts.slice();
+    },
+
     finishDrawing: function() {
         if (!this.isDrawing) return;
         this.isDrawing = false;
@@ -1221,10 +1485,16 @@ const editor = {
         const simplified = this.simplifyClosedLoop(raw, 9);
         if (simplified.length < 3) { alert('Draw a bigger loop — that stroke was too small to build a track from.'); return; }
 
-        // 'corner' (no bezier fillet) — with this many samples the polyline is
-        // already smooth on its own, and it sidesteps the fillet self-overlap
-        // risk that hit 'rounded' points here (see generateTrackFromPath).
-        this.track.path = simplified.map(p => ({ x: Math.round(p.x), y: Math.round(p.y), type: 'corner', radius: 35 }));
+        // Freehand strokes land points wherever the pointer happened to be
+        // sampled. Two points closer together than the road is wide leave no
+        // room for the corner arcs the generator fits between them, which is
+        // what turned hand-drawn loops into a chain of kinks — so thin them out
+        // to at least a track-width apart first.
+        const spaced = this.spaceOutPoints(simplified, Math.max(18, this.track.trackWidth * 1.1));
+        if (spaced.length < 3) { alert('Draw a bigger loop — that stroke was too small to build a track from.'); return; }
+        // 'corner' now means "as tight as the track width allows" rather than
+        // "no rounding at all", which is exactly what a traced stroke wants.
+        this.track.path = spaced.map(p => ({ x: Math.round(p.x), y: Math.round(p.y), type: 'corner', radius: 35 }));
         // Re-derive a concrete start pos/angle from the new path (the old ones
         // belonged to whatever shape was there before) — computed once now
         // rather than left null, since save() reads track.startPos.x directly.
@@ -1490,14 +1760,11 @@ const editor = {
 
     draw: function(ctx) {
         const p = generateTrackFromPath(this.track.id, this.track.name, this.track.path, this.track.trackWidth, this.track.startPos, this.track.startAngle, this.track.zones);
-        if (p.leftPoly && p.rightPoly) {
-             ctx.fillStyle = '#343a40';
-             for(let i=0; i<p.leftPoly.length; i++) {
-                 const n = (i+1)%p.leftPoly.length; ctx.beginPath(); ctx.moveTo(p.leftPoly[i].x, p.leftPoly[i].y); ctx.lineTo(p.leftPoly[n].x, p.leftPoly[n].y);
-                 ctx.lineTo(p.rightPoly[n].x, p.rightPoly[n].y); ctx.lineTo(p.rightPoly[i].x, p.rightPoly[i].y); ctx.fill();
-             }
-        }
-        ctx.strokeStyle='#334155'; ctx.lineWidth=4; ctx.beginPath(); p.walls.forEach(w => { ctx.moveTo(w.p1.x, w.p1.y); ctx.lineTo(w.p2.x, w.p2.y); }); ctx.stroke();
+        drawRoadSurface(ctx, p, '#343a40');
+        // Light, not slate: the barrier now sits exactly on the edge of the
+        // asphalt, so a near-asphalt colour made it invisible while editing.
+        ctx.strokeStyle='#cbd5e1'; ctx.lineWidth=3; ctx.lineJoin='round'; ctx.lineCap='round';
+        ctx.beginPath(); p.walls.forEach(w => { ctx.moveTo(w.p1.x, w.p1.y); ctx.lineTo(w.p2.x, w.p2.y); }); ctx.stroke();
         ctx.strokeStyle='#38bdf8'; ctx.lineWidth=2; ctx.beginPath(); p.checkpoints.forEach(cp => { ctx.moveTo(cp.p1.x, cp.p1.y); ctx.lineTo(cp.p2.x, cp.p2.y); }); ctx.stroke();
         
         p.zones.forEach(z => {

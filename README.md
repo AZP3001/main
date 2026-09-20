@@ -42,7 +42,16 @@ Fine-tune the simulation and the learning process using the built-in settings.
 Click any car on the track to pin the telemetry panel and sensor overlay to it — it stays highlighted until it crashes or you click empty space / hit "Release". With nothing selected, the panel auto-follows whichever car currently has the best fitness.
 
 ## Track Editor
-Besides placing points by hand, the editor now has three ways to build a track:
+### How a track is built
+A track is a closed centre line plus a width. The road surface is everything within that width of the centre line — the same shape you'd get by stroking the line with a fat round pen — and the barriers are traced along the outside edge of exactly that shape, as one continuous wall per side. So the road is the same width the whole way round, the walls always sit on the edge of the asphalt, and where a track crosses or runs into itself the two bits of road simply join up instead of leaving stray walls in the middle of the road.
+
+Each point on the path is a turn, and turns are real circular arcs:
+* **Rounded:** an arc of the radius you set on the slider.
+* **Corner:** the tightest arc the track width still allows — sharp, but never so sharp that nothing fits through it.
+
+A turn is never allowed to be tighter than the road is wide, and neighbouring turns share out the straight between them, so putting two points close together softens both instead of kinking the road.
+
+Besides placing points by hand, the editor has three ways to build a track:
 * **Draw:** switch to the Draw tab and drag a loop directly on the canvas — it's simplified into an editable path automatically.
 * **Import from Image:** upload a PNG/JPG (a hand-drawn loop or a photo of a track layout) and it's analyzed (thresholded, skeletonized, traced) into a starting track for you to refine.
 * **Duplicate:** clone the currently-selected track as a starting point for a variant.
