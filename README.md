@@ -1,3 +1,6 @@
+# Now Archived. [*New Version*](https://github.com/AZP3001/trackml-assembly)
+Newer version is using Web-Assembly or "WASM" thus is alot quicker and replaced this version.
+
 # AI RaceTrack Evolution    
 [*To Simulation*](https://azp3001.github.io/main/)
 
